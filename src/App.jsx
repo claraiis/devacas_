@@ -127,6 +127,7 @@ const VacationOptimizer = () => {
     }
   }, [config.postalCode, config.year]);
 
+
   const toggleSection = (section) => {
     setExpanded(prev => {
       const isCurrentlyExpanded = prev[section];
@@ -773,7 +774,7 @@ const VacationOptimizer = () => {
                 className="w-full py-3 bg-[#F26D1B] text-white font-semibold hover:bg-[#d95f17] flex items-center justify-center gap-2 rounded transition-colors"
               >
                 <Calendar size={20} />
-                Optimizar vacaciones
+                Calcular vacaciones optimizadas
               </button>
             </div>
           </div>
@@ -786,7 +787,7 @@ const VacationOptimizer = () => {
 
       {/* Output Section - Resume */}
       {showCalendar && (
-        <div ref={outputRef} className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50 md:static">
+        <div ref={outputRef} className="sticky top-0 z-10 md:static border-b border-gray-200 bg-gray-50">
           <div className="max-w-7xl mx-auto px-6 py-8">
             <div className="grid grid-cols-3 gap-4 md:gap-8">
               <div className="text-center">

@@ -508,9 +508,9 @@ const VacationOptimizer = () => {
   const availableDays = config.vacationDays - confirmedDays - proposedDays;
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className={`bg-white flex flex-col ${!showCalendar ? "min-h-screen" : ""}`}>
       {/* Header */}
-      <header className="py-6 px-6">
+      <header className="py-6 px-4 md:px-6">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-2xl">
             <span className="text-[#F26D1B] font-semibold">de</span>
@@ -520,36 +520,36 @@ const VacationOptimizer = () => {
       </header>
 
       {/* Configuration Section - 100vh cuando no hay resultados */}
-      <div className={!showCalendar ? "min-h-[calc(100vh-80px)] flex flex-col" : ""}>
+      <div className={!showCalendar ? "flex-1 flex flex-col" : ""}>
         {/* Hero */}
-        <div className="py-8 md:py-16 px-6 text-center">
+        <div className="py-8 md:py-16 px-4 md:px-6 text-center">
           <h1 className="text-3xl md:text-5xl font-bold mb-4">Sácale el máximo partido a tus vacaciones</h1>
           <p className="text-lg md:text-xl text-gray-500">Convierte días sueltos en descansos significativos</p>
         </div>
 
         {/* Configuration Forms */}
         <div className={!showCalendar ? "flex-1" : ""}>
-          <div className="max-w-7xl mx-auto md:px-6 py-6 md:space-y-3">
+          <div className="max-w-7xl mx-auto px-0 md:px-6 py-6 md:space-y-3">
 
       {/* Sección 1: Configuración básica */}
       <div>
         <button
           onClick={() => toggleSection('section1')}
-          className="w-full p-6 flex justify-between items-center hover:bg-gray-50 hover:rounded-[4px]"
+          className="w-full px-4 md:px-6 py-6 flex justify-between items-center hover:bg-gray-50 hover:rounded-[4px]"
         >
-          <span className="font-bold text-xl text-[#F26D1B]">1. Empecemos por lo básico</span>
+          <span className="font-semibold text-xl text-black">1. Empecemos por lo básico</span>
           {expanded.section1 ? <ChevronUp /> : <ChevronDown />}
         </button>
         
         {expanded.section1 && (
-          <div className="p-6">
+          <div className="px-4 md:px-6 py-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block mb-2 font-medium">País</label>
                 <select
                   value={config.country}
                   onChange={(e) => setConfig(prev => ({ ...prev, country: e.target.value }))}
-                  className="w-full p-2 border border-gray-300 rounded"
+                  className="w-full py-2 pl-2 pr-8 border border-gray-300 rounded"
                 >
                   <option value="ES">España</option>
                 </select>
@@ -592,7 +592,7 @@ const VacationOptimizer = () => {
                   <select
                     value={config.vacationType}
                     onChange={(e) => setConfig(prev => ({ ...prev, vacationType: e.target.value }))}
-                    className="p-2 border border-gray-300 rounded"
+                    className="py-2 pl-2 pr-8 border border-gray-300 rounded"
                   >
                     <option value="laborables">laborables</option>
                     <option value="naturales">naturales</option>
@@ -625,14 +625,14 @@ const VacationOptimizer = () => {
       <div>
         <button
           onClick={() => toggleSection('section2')}
-          className="w-full p-6 flex justify-between items-center hover:bg-gray-50  hover:rounded-[4px]"
+          className="w-full px-4 md:px-6 py-6 flex justify-between items-center hover:bg-gray-50  hover:rounded-[4px]"
         >
-          <span className="font-bold text-xl text-[#F26D1B]">2. Festivos de convenio / locales</span>
+          <span className="font-semibold text-xl text-black">2. Festivos de convenio / locales</span>
           {expanded.section2 ? <ChevronUp /> : <ChevronDown />}
         </button>
         
         {expanded.section2 && (
-          <div className="p-6">
+          <div className="px-4 md:px-6 py-6">
             <div className="flex flex-col md:flex-row gap-4 mb-4">
               <input
                 type="date"
@@ -691,16 +691,16 @@ const VacationOptimizer = () => {
       <div ref={section3Ref}>
         <button
           onClick={() => toggleSection('section3')}
-          className="w-full p-6 flex justify-between items-center hover:bg-gray-50 hover:rounded-[4px]"
+          className="w-full px-4 md:px-6 py-6 flex justify-between items-center hover:bg-gray-50 hover:rounded-[4px]"
         >
-          <span className="font-bold text-xl text-[#F26D1B]">3. Preferencias laborales</span>
+          <span className="font-semibold text-xl text-black">3. Preferencias laborales</span>
           {expanded.section3 ? <ChevronUp /> : <ChevronDown />}
         </button>
         
         {expanded.section3 && (
           <div className="space-y-6">
             {/* Contenedor de preguntas */}
-            <div className="p-6 space-y-6">
+            <div className="px-4 md:px-6 py-6 space-y-6">
               <div>
                 <label className="block mb-3 font-medium">¿Qué días trabajas?</label>
                 <div className="space-y-2">
@@ -768,7 +768,7 @@ const VacationOptimizer = () => {
             </div>
 
             {/* Botón separado */}
-            <div className="mx-6">
+            <div className="mx-4 md:mx-6">
               <button
                 onClick={optimizeVacations}
                 className="w-full py-3 bg-[#F26D1B] text-white font-semibold hover:bg-[#d95f17] flex items-center justify-center gap-2 rounded transition-colors"
@@ -788,7 +788,7 @@ const VacationOptimizer = () => {
       {/* Output Section - Resume */}
       {showCalendar && (
         <div ref={outputRef} className="sticky top-0 z-10 md:static border-b border-gray-200 bg-gray-50">
-          <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
             <div className="grid grid-cols-3 gap-4 md:gap-8">
               <div className="text-center">
                 <div className="text-4xl md:text-5xl font-bold mb-2">{nationalHolidays.length + regionalHolidays.length + config.customHolidays.length}</div>
@@ -810,7 +810,7 @@ const VacationOptimizer = () => {
       {/* Calendar Section */}
       {showCalendar && (
         <div>
-          <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-20" ref={calendarRef}>
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 mt-6 md:mt-20" ref={calendarRef}>
             {/* Leyenda y botón Recalcular */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mt-6 md:mt-20">
               {/* Leyenda de colores */}
@@ -850,10 +850,10 @@ const VacationOptimizer = () => {
       )}
 
       {/* Footer */}
-      <footer className="py-8 px-6 mt-20">
+      <footer className={`py-8 px-4 md:px-6 ${showCalendar ? "mt-20" : ""}`}>
         <div className="max-w-7xl mx-auto text-center">
-          <p className="text-gray-600">
-            Feito con <span className="text-red-500">♥</span> por Clara
+          <p className="text-gray-600 text-sm">
+            Feito con <span className="text-orange-500">♥</span> por Clara
           </p>
         </div>
       </footer>

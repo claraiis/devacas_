@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronUp, Plus, X, Calendar } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, X, Calendar, Download, HelpCircle } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // Datos estáticos de festivos autonómicos españoles
 const REGIONAL_HOLIDAYS = {
@@ -80,9 +82,21 @@ const VacationOptimizer = () => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [showLimitBanner, setShowLimitBanner] = useState(false);
   const [holidayError, setHolidayError] = useState('');
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const calendarRef = useRef(null);
   const outputRef = useRef(null);
   const section3Ref = useRef(null);
+
+  // Cerrar modal con tecla ESC
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && showHelpModal) {
+        setShowHelpModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showHelpModal]);
 
   // Cargar configuración desde localStorage
   useEffect(() => {
@@ -507,17 +521,166 @@ const VacationOptimizer = () => {
   const proposedDays = optimizedDays.filter(d => !config.manualOverrides[d]).length;
   const availableDays = config.vacationDays - confirmedDays - proposedDays;
 
+  const downloadCalendar = async () => {
+    const vacationDays = optimizedDays.filter(dateStr => {
+      const override = config.manualOverrides[dateStr];
+      return !override || override === 'confirmed';
+    });
+
+    if (vacationDays.length === 0) {
+      alert('No hay días de vacaciones para descargar');
+      return;
+    }
+
+    try {
+      // Capturar el elemento del calendario
+      const calendarElement = calendarRef.current;
+      if (!calendarElement) {
+        alert('No se pudo capturar el calendario');
+        return;
+      }
+
+      // Convertir el calendario a canvas
+      const canvas = await html2canvas(calendarElement, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // Crear PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 10;
+
+      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      pdf.save(`vacaciones_${config.year}.pdf`);
+    } catch (error) {
+      console.error('Error al generar el PDF:', error);
+      alert('Hubo un error al generar el PDF');
+    }
+  };
+
   return (
     <div className={`bg-white flex flex-col ${!showCalendar ? "min-h-screen" : ""}`}>
       {/* Header */}
       <header className="py-6 px-4 md:px-6">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <h1 className="text-xl">
             <span className="text-[#F26D1B] font-semibold">de</span>
             <span className="text-black font-semibold">vacas_</span>
           </h1>
+          <button
+            onClick={() => setShowHelpModal(true)}
+            className="flex items-center gap-2 px-4 py-2 text-black hover:bg-orange-50 rounded transition-colors"
+          >
+            <HelpCircle size={20} />
+            <span className="hidden md:inline">Ayuda</span>
+          </button>
         </div>
       </header>
+
+      {/* Help Modal */}
+      {showHelpModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowHelpModal(false)}
+        >
+          <div
+            className="bg-white rounded-[4px] max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-2xl font-semibold">¿Cómo funciona devacas_?</h2>
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="px-6 py-6 space-y-8">
+              {/* Sección 1: Eficiencia */}
+              <section>
+                <p className="text-gray-700 mb-3">
+                  <strong>devacas_</strong> analiza todo el calendario del año para encontrar las mejores oportunidades de maximizar tus días libres,
+                  priorizando periodos extendidos de vacaciones* según su ratio de eficiencia:
+                </p>
+                <div className="bg-orange-50 border-l-4 border-[#F26D1B] p-4 mb-3">
+                  <p className="font-mono text-sm">
+                    <strong>Eficiencia</strong> = Días libres totales / Días de vacaciones gastados
+                  </p>
+                </div>
+                <p className="text-gray-700 mb-3 text-sm">
+                  *El algoritmo entiende por periodos extendidos de vacaciones aquellos de 3 o más días, buscando siempre el mejor ratio posible.
+                </p>
+              </section>
+
+              {/* Sección 2: Funcionamiento */}
+              <section>
+                <h3 className="text-xl font-semibold mb-3 text-black">Máximo descanso personalizado</h3>
+                  <p className="text-gray-700 mb-3">
+                  Mientras otras herramientas se limitan a decirte cuándo caen los puentes, <strong>devacas_</strong> se adapta a tu realidad.
+                </p>
+                <p className="text-gray-700 mb-3">
+                  Elige entre vacaciones en días naturales o laborables, define tus días de trabajo, añade festivos por convenio e indica si tienes alguna limitación a la hora de cogerte vacaciones.
+                </p>
+                <p className="text-gray-700 mb-2">
+                  A partir de ahí, el algoritmo busca los huecos más rentables y te propone un calendario optimizado para ti, no para “la media”. ¿Que un día no te convence? Lo cambias.
+                </p>
+                <p className="text-gray-700 mb-2">
+                  ¿Que un día no te convence? Lo quitas. 
+                </p>
+                <p className="text-gray-700 mb-2">
+                  ¿Que prefieres este otro? Lo reservas.
+                </p>
+                <p className="text-gray-700 mb-2">
+                  ¿Que este fin de semana se casa tu prima y tienes que estar aquí? Lo bloqueas.
+                </p>
+              </section>
+
+              {/* Sección 3: Fuentes */}
+              <section>
+                <h3 className="text-xl font-semibold mb-3 text-black">Fuentes de datos</h3>
+                <p className="text-gray-700 mb-2">
+                  Los festivos están incluidos directamente en el código de la aplicación.
+                </p>
+                <ul className="list-disc list-inside text-gray-700 space-y-1">
+                  <li><strong>Festivos nacionales:</strong> <a href="https://date.nager.at/">Nager.Date API</a></li>
+                  <li><strong>Festivos autonómicos:</strong> <a href="https://www.rtve.es/noticias/20251006/calendario-laboral-2026-festivos-puentes-nacionales-autonomicos/16744047.shtml">Este artículo recopilatorio de RTVE</a></li>
+                </ul>
+                <p className="text-gray-700 text-sm mt-3">
+                  *Los datos se basan en el calendario oficial español. Puedes añadir festivos adicionales
+                  en la sección "Festivos de convenio / locales" si tu empresa o localidad tiene días especiales.
+                </p>
+              </section>
+
+              {/* Nota final */}
+              <div className="bg-gray-50 rounded p-4 text-sm text-gray-600">
+                <p>
+                  💡 <strong>Recuerda:</strong> Esta es una herramienta de planificación. 
+                  Los días propuestos son sugerencias que puedes confirmar, modificar o eliminar según tus necesidades.
+                  Verifica siempre las políticas de vacaciones de tu empresa.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Configuration Section - 100vh cuando no hay resultados */}
       <div className={!showCalendar ? "flex-1 flex flex-col" : ""}>
@@ -768,13 +931,13 @@ const VacationOptimizer = () => {
             </div>
 
             {/* Botón separado */}
-            <div className="mx-4 md:mx-6">
+            <div className="mx-4 md:mx-6 flex justify-center">
               <button
                 onClick={optimizeVacations}
-                className="w-full py-3 bg-[#F26D1B] text-white font-semibold hover:bg-[#d95f17] flex items-center justify-center gap-2 rounded transition-colors"
+                className="px-6 py-3 bg-[#F26D1B] text-white font-semibold hover:bg-[#d95f17] flex items-center justify-center gap-2 rounded transition-colors"
               >
                 <Calendar size={20} />
-                Calcular vacaciones optimizadas
+                Optimizar mis vacaciones
               </button>
             </div>
           </div>
@@ -810,11 +973,11 @@ const VacationOptimizer = () => {
       {/* Calendar Section */}
       {showCalendar && (
         <div>
-          <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 mt-6 md:mt-20" ref={calendarRef}>
-            {/* Leyenda y botón Recalcular */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mt-6 md:mt-20">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 mt-6" ref={calendarRef}>
+            {/* Leyenda centrada */}
+            <div className="flex justify-center mt-20 md:mt-6 mb-6">
               {/* Leyenda de colores */}
-              <div className="w-full md:w-auto grid grid-cols-2 md:flex md:flex-wrap gap-4 md:gap-6 text-xs md:text-sm">
+              <div className="grid grid-cols-2 md:flex md:flex-wrap gap-4 md:gap-6 text-xs md:text-sm">
                 {[
                   { color: 'purple', label: 'Festivo' },
                   { color: 'blue', label: 'Propuesto' },
@@ -827,14 +990,6 @@ const VacationOptimizer = () => {
                   </div>
                 ))}
               </div>
-
-              {/* Botón Recalcular */}
-              <button
-                onClick={optimizeVacations}
-                className="w-full md:w-auto px-6 py-2 bg-[#F26D1B] text-white hover:bg-[#d95f17] rounded transition-colors whitespace-nowrap"
-              >
-                Recalcular
-              </button>
             </div>
 
           {/* Banner de límite alcanzado */}
@@ -846,6 +1001,27 @@ const VacationOptimizer = () => {
 
           {renderCalendar()}
           </div>
+
+          {/* Botones de acción */}
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-6">
+            <div className="flex flex-col md:flex-row gap-4 justify-center">
+              {/* Botón Recalcular - secundario */}
+              <button
+                onClick={optimizeVacations}
+                className="px-6 py-3 bg-white text-[#F26D1B] border-2 border-[#F26D1B] hover:bg-orange-50 rounded transition-colors whitespace-nowrap"
+              >
+                Recalcular
+              </button>
+
+              {/* Botón Descargar - principal */}
+              <button
+                onClick={downloadCalendar}
+                className="px-6 py-3 bg-[#F26D1B] text-white hover:bg-[#d95f17] rounded transition-colors whitespace-nowrap"
+              >
+                Descargar PDF
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -853,7 +1029,7 @@ const VacationOptimizer = () => {
       <footer className={`py-8 px-4 md:px-6 ${showCalendar ? "mt-20" : ""}`}>
         <div className="max-w-7xl mx-auto text-center">
           <p className="text-gray-600 text-sm">
-            Feito con <span className="text-orange-500">♥</span> por Clara
+            Feito con <span className="text-[#F26D1B]">♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/">Clara Iglesias</a>
           </p>
         </div>
       </footer>

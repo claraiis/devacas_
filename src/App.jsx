@@ -578,12 +578,12 @@ const VacationOptimizer = () => {
       <header className="py-6 px-4 md:px-6">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <h1 className="text-xl">
-            <span className="text-[#F26D1B] font-semibold">de</span>
+            <span className="text-[#792a26] font-semibold">de</span>
             <span className="text-black font-semibold">vacas_</span>
           </h1>
           <button
             onClick={() => setShowHelpModal(true)}
-            className="flex items-center gap-2 px-4 py-2 text-black hover:bg-orange-50 rounded transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-black hover:bg-[#FFF7ED] rounded-[4px] transition-colors"
           >
             <HelpCircle size={20} />
             <span className="hidden md:inline">Ayuda</span>
@@ -620,7 +620,7 @@ const VacationOptimizer = () => {
                   <strong>devacas_</strong> analiza todo el calendario del año para encontrar las mejores oportunidades de maximizar tus días libres,
                   priorizando periodos extendidos de vacaciones* según su ratio de eficiencia:
                 </p>
-                <div className="bg-orange-50 border-l-4 border-[#F26D1B] p-4 mb-3">
+                <div className="bg-orange-50 border-l-4 border-[#7c4c46] p-4 mb-3">
                   <p className="font-mono text-sm">
                     <strong>Eficiencia</strong> = Días libres totales / Días de vacaciones gastados
                   </p>
@@ -874,7 +874,7 @@ const VacationOptimizer = () => {
                       value="L-V"
                       checked={config.workDays === 'L-V'}
                       onChange={(e) => setConfig(prev => ({ ...prev, workDays: e.target.value }))}
-                      className="w-5 h-5 accent-[#F26D1B] cursor-pointer"
+                      className="w-5 h-5 accent-[#7c4c46] cursor-pointer"
                     />
                     Lunes a viernes
                   </label>
@@ -885,7 +885,7 @@ const VacationOptimizer = () => {
                       value="L-S"
                       checked={config.workDays === 'L-S'}
                       onChange={(e) => setConfig(prev => ({ ...prev, workDays: e.target.value }))}
-                      className="w-5 h-5 accent-[#F26D1B] cursor-pointer"
+                      className="w-5 h-5 accent-[#7c4c46] cursor-pointer"
                     />
                     Lunes a sábado
                   </label>
@@ -896,7 +896,7 @@ const VacationOptimizer = () => {
                       value="custom"
                       checked={config.workDays === 'custom'}
                       onChange={(e) => setConfig(prev => ({ ...prev, workDays: e.target.value }))}
-                      className="w-5 h-5 accent-[#F26D1B] cursor-pointer"
+                      className="w-5 h-5 accent-[#7c4c46] cursor-pointer"
                     />
                     No tengo días fijos (seleccionar en calendario)
                   </label>
@@ -912,7 +912,7 @@ const VacationOptimizer = () => {
                       name="weeklyBlocks"
                       checked={config.weeklyBlocks === true}
                       onChange={() => setConfig(prev => ({ ...prev, weeklyBlocks: true }))}
-                      className="w-5 h-5 accent-[#F26D1B] cursor-pointer"
+                      className="w-5 h-5 accent-[#7c4c46] cursor-pointer"
                     />
                     Sí
                   </label>
@@ -922,7 +922,7 @@ const VacationOptimizer = () => {
                       name="weeklyBlocks"
                       checked={config.weeklyBlocks === false}
                       onChange={() => setConfig(prev => ({ ...prev, weeklyBlocks: false }))}
-                      className="w-5 h-5 accent-[#F26D1B] cursor-pointer"
+                      className="w-5 h-5 accent-[#7c4c46] cursor-pointer"
                     />
                     No
                   </label>
@@ -934,7 +934,7 @@ const VacationOptimizer = () => {
             <div className="mx-4 md:mx-6 flex justify-center">
               <button
                 onClick={optimizeVacations}
-                className="px-6 py-3 bg-[#F26D1B] text-white font-semibold hover:bg-[#d95f17] flex items-center justify-center gap-2 rounded transition-colors"
+                className="px-6 py-3 bg-[#7c4c46] text-white font-semibold hover:bg-[#d95f17] flex items-center justify-center gap-2 rounded transition-colors"
               >
                 <Calendar size={20} />
                 Optimizar mis vacaciones
@@ -1008,7 +1008,7 @@ const VacationOptimizer = () => {
               {/* Botón Recalcular - secundario */}
               <button
                 onClick={optimizeVacations}
-                className="px-6 py-3 bg-white text-[#F26D1B] border-2 border-[#F26D1B] hover:bg-orange-50 rounded transition-colors whitespace-nowrap"
+                className="px-6 py-3 bg-white text-[#7c4c46] border-2 border-[#7c4c46] hover:bg-[#FFF7ED] rounded transition-colors whitespace-nowrap"
               >
                 Recalcular
               </button>
@@ -1016,7 +1016,7 @@ const VacationOptimizer = () => {
               {/* Botón Descargar - principal */}
               <button
                 onClick={downloadCalendar}
-                className="px-6 py-3 bg-[#F26D1B] text-white hover:bg-[#d95f17] rounded transition-colors whitespace-nowrap"
+                className="px-6 py-3 bg-[#7c4c46] text-white hover:bg-[#653934] rounded transition-colors whitespace-nowrap"
               >
                 Descargar PDF
               </button>
@@ -1029,7 +1029,10 @@ const VacationOptimizer = () => {
       <footer className={`py-8 px-4 md:px-6 ${showCalendar ? "mt-20" : ""}`}>
         <div className="max-w-7xl mx-auto text-center">
           <p className="text-gray-600 text-sm">
-            Feito con <span className="text-[#F26D1B]">♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/">Clara Iglesias</a>
+            Feito con <span className="text-[#7c4c46]">♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/">Clara Iglesias</a> (+ Claude Code)
+          </p>
+          <p className="text-gray-600 text-sm mt-2">
+            Ver repositorio en <a href="https://github.com/claraiis/devacas_">Github</a>
           </p>
         </div>
       </footer>

@@ -796,7 +796,7 @@ const VacationOptimizer = () => {
               />
               <button
                 onClick={addCustomHoliday}
-                className="w-full md:w-auto px-6 py-2 bg-black text-white hover:bg-gray-800 flex items-center justify-center gap-2 rounded"
+                className="w-full md:w-auto px-6 py-2 bg-[#7c4c46] text-white hover:bg-[#653934] flex items-center justify-center gap-2 rounded"
               >
                 <Plus size={20} /> Añadir
               </button>

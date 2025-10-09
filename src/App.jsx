@@ -713,14 +713,13 @@ const VacationOptimizer = () => {
               
               <div>
                 <label className="block mb-2 font-medium">Año</label>
-                <input
-                  type="number"
+                <select
                   value={config.year}
                   onChange={(e) => setConfig(prev => ({ ...prev, year: parseInt(e.target.value) }))}
-                  className="w-full p-2 border border-gray-300 rounded"
-                  min="2026"
-                  max="2026"
-                />
+                  className="w-full py-2 pl-2 pr-8 border border-gray-300 rounded"
+                >
+                  <option value="2026">2026</option>
+                </select>
               </div>
               
               <div>

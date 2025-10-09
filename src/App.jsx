@@ -731,7 +731,7 @@ const VacationOptimizer = () => {
                     <div className={`absolute left-0 top-full mt-2 w-64 p-3 bg-gray-900 text-white text-sm rounded shadow-lg transition-all duration-200 z-20 ${
                       showPostalCodeTooltip ? 'opacity-100 visible' : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'
                     }`}>
-                      Los días festivos se calculan teniendo en cuenta el código postal indicado
+                      Los días festivos se calculan en base a este código postal.
                     </div>
                   </div>
                 </label>

@@ -70,6 +70,14 @@ const VacationOptimizer = () => {
   const section3Ref = useRef(null);
   const holidayDateInputRef = useRef(null);
 
+  // Prevenir scroll horizontal
+  useEffect(() => {
+    document.body.style.overflowX = 'hidden';
+    return () => {
+      document.body.style.overflowX = '';
+    };
+  }, []);
+
   // Cerrar modal con tecla ESC
   useEffect(() => {
     const handleEscape = (e) => {
@@ -480,11 +488,13 @@ const VacationOptimizer = () => {
       // Prioridad de colores: confirmado > bloqueado > propuesto
       // Los festivos y fines de semana se quedan en gris sin borde de color
       if (override === 'confirmed') {
-        borderColor = 'border-green-500';
+        bgColor = 'bg-green-100';
+        borderColor = 'border-gray-200';
       } else if (override === 'blocked') {
-        borderColor = 'border-red-500';
+        bgColor = 'bg-red-100';
+        borderColor = 'border-gray-200';
       } else if (optimizedDays.includes(dateStr)) {
-        borderColor = 'border-blue-500';
+        borderColor = 'border-[#7c4c46]';
       }
 
       days.push(
@@ -523,7 +533,11 @@ const VacationOptimizer = () => {
   const confirmedDays = Object.values(config.manualOverrides).filter(v => v === 'confirmed').length;
   const proposedDays = optimizedDays.filter(d => !config.manualOverrides[d]).length;
   const vacationDaysNumber = config.vacationDays === '' ? 0 : config.vacationDays;
-  const availableDays = vacationDaysNumber - confirmedDays - proposedDays;
+
+  // Cálculos para el output section
+  const daysGenerated = vacationDaysNumber; // Días de vacaciones introducidos
+  const daysAssigned = proposedDays + confirmedDays; // Días propuestos + confirmados
+  const daysAvailable = vacationDaysNumber - daysAssigned; // Días sin asignar
 
   const downloadCalendar = async () => {
     const vacationDays = optimizedDays.filter(dateStr => {
@@ -593,7 +607,7 @@ const VacationOptimizer = () => {
   };
 
   return (
-    <div className={`bg-white flex flex-col overflow-x-hidden ${!showCalendar ? "min-h-screen" : ""}`}>
+    <div className={`bg-white flex flex-col ${!showCalendar ? "min-h-screen" : ""}`}>
       {/* Header */}
       <header className="py-6 px-4 md:px-6">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -660,7 +674,7 @@ const VacationOptimizer = () => {
                   Elige entre vacaciones en días naturales o laborables, define tus días de trabajo, añade festivos por convenio e indica si tienes alguna limitación a la hora de cogerte vacaciones.
                 </p>
                 <p className="text-gray-700 mb-2">
-                  A partir de ahí, el algoritmo busca los huecos más rentables y te propone un calendario optimizado para ti, no para “la media”. ¿Que un día no te convence? Lo cambias.
+                  A partir de ahí, el algoritmo busca los huecos más rentables y te propone un calendario optimizado para ti, no para “la media”.
                 </p>
                 <p className="text-gray-700 mb-2">
                   ¿Que un día no te convence? Lo quitas. 
@@ -1005,16 +1019,16 @@ const VacationOptimizer = () => {
           <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
             <div className="grid grid-cols-3 gap-4 md:gap-8">
               <div className="text-center">
-                <div className="text-4xl md:text-5xl font-bold mb-2">{nationalHolidays.length + regionalHolidays.length + config.customHolidays.length}</div>
-                <div className="text-sm text-gray-600">Festivos</div>
+                <div className="text-4xl md:text-5xl font-bold mb-2">{daysGenerated}</div>
+                <div className="text-sm text-gray-600">Generados</div>
               </div>
               <div className="text-center">
-                <div className="text-4xl md:text-5xl font-bold mb-2">{vacationDaysNumber}</div>
+                <div className="text-4xl md:text-5xl font-bold mb-2">{daysAssigned}</div>
+                <div className="text-sm text-gray-600">Asignados</div>
+              </div>
+              <div className="text-center">
+                <div className="text-4xl md:text-5xl font-bold mb-2">{daysAvailable}</div>
                 <div className="text-sm text-gray-600">Disponibles</div>
-              </div>
-              <div className="text-center">
-                <div className="text-4xl md:text-5xl font-bold mb-2">{availableDays}</div>
-                <div className="text-sm text-gray-600">Sin asignar</div>
               </div>
             </div>
           </div>
@@ -1024,21 +1038,28 @@ const VacationOptimizer = () => {
       {/* Calendar Section */}
       {showCalendar && (
         <div>
-          <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 mt-6" ref={calendarRef}>
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-6" ref={calendarRef}>
             {/* Leyenda centrada */}
-            <div className="flex justify-center mt-20 md:mt-6 mb-6">
+            <div className="flex flex-col md:flex-row items-center justify-center mt-6 mb-6 gap-6 md:gap-0 border border-gray-200 py-6 rounded-[4px]">
+              <div className="w-full md:w-1/2 flex justify-center md:justify-end md:pr-4 order-2 md:order-1">
+                <p className="text-sm text-gray-600">Haz clic en una fecha para cambiar su estado</p>
+              </div>
               {/* Leyenda de colores */}
-              <div className="grid grid-cols-2 md:flex md:flex-wrap gap-4 md:gap-6 text-xs md:text-sm">
-                {[
-                  { color: 'blue', label: 'Propuesto' },
-                  { color: 'green', label: 'Reservado' },
-                  { color: 'red', label: 'Bloqueado' }
-                ].map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-3 text-sm">
-                    <div className={`w-6 h-6 border-2 border-${color}-500 rounded`}></div>
-                    <span>{label}</span>
+              <div className="w-full md:w-1/2 flex justify-center md:justify-start md:pl-4 order-1 md:order-2">
+                <div className="grid grid-cols-3 md:flex md:flex-wrap gap-4 md:gap-6 text-xs md:text-sm">
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-6 h-6 border-2 border-[#7c4c46] rounded"></div>
+                    <span>Propuesto</span>
                   </div>
-                ))}
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-6 h-6 bg-green-100 border border-gray-200 rounded"></div>
+                    <span>Confirmado</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-6 h-6 bg-red-100 border border-gray-200 rounded"></div>
+                    <span>Bloqueado</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1058,7 +1079,7 @@ const VacationOptimizer = () => {
               {/* Botón Recalcular - secundario */}
               <button
                 onClick={optimizeVacations}
-                className="px-6 py-3 bg-white text-[#7c4c46] border-2 border-[#7c4c46] hover:bg-[#FFF7ED] rounded transition-colors whitespace-nowrap"
+                className="px-6 py-3 bg-white text-[#7c4c46] border-2 border-[#7c4c46] hover:bg-[#f9f6f5] rounded transition-colors whitespace-nowrap"
               >
                 Recalcular
               </button>

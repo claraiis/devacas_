@@ -728,7 +728,7 @@ const VacationOptimizer = () => {
                         setTimeout(() => setShowPostalCodeTooltip(false), 3000);
                       }}
                     />
-                    <div className={`absolute left-0 top-full mt-2 w-64 p-3 bg-gray-900 text-white text-sm rounded shadow-lg transition-all duration-200 z-20 ${
+                    <div className={`absolute left-0 top-full mt-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-[4px] shadow-lg transition-all duration-200 z-20 ${
                       showPostalCodeTooltip ? 'opacity-100 visible' : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'
                     }`}>
                       Los días festivos se calculan en base a este código postal.
@@ -1045,10 +1045,10 @@ const VacationOptimizer = () => {
       <footer className={`py-8 px-4 md:px-6 ${showCalendar ? "mt-20" : ""}`}>
         <div className="max-w-7xl mx-auto text-center">
           <p className="text-gray-600 text-sm">
-            Feito con <span className="text-[#7c4c46]">♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/">Clara Iglesias</a>
+            Hecho con <span className="text-[#7c4c46]">♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/">Clara Iglesias</a>
           </p>
           <p className="text-gray-600 text-sm mt-2">
-            Ver repositorio en <a href="https://github.com/claraiis/devacas_">Github</a>
+            <a href="https://github.com/claraiis/devacas_">Ver repositorio en Github</a>
           </p>
         </div>
       </footer>

@@ -47,7 +47,7 @@ const VacationOptimizer = () => {
   const [config, setConfig] = useState({
     country: 'ES',
     postalCode: '',
-    year: new Date().getFullYear(),
+    year: 2026,
     vacationDays: 22,
     vacationType: 'laborables',
     workDays: 'L-V',
@@ -749,11 +749,13 @@ const VacationOptimizer = () => {
               </div>
             </div>
             
-            {nationalHolidays.length > 0 && (
+            {(nationalHolidays.length > 0 || regionalHolidays.length > 0) && (
               <div className="mt-6 p-4 bg-gray-50">
                 <h3 className="font-semibold mb-2">Festivos detectados:</h3>
                 <div className="text-sm space-y-1">
-                  <p><strong>Nacionales:</strong> {nationalHolidays.length} festivos</p>
+                  {nationalHolidays.length > 0 && (
+                    <p><strong>Nacionales:</strong> {nationalHolidays.length} festivos</p>
+                  )}
                   {regionalHolidays.length > 0 && (
                     <p><strong>Autonómicos:</strong> {regionalHolidays.length} festivos</p>
                   )}
@@ -914,7 +916,7 @@ const VacationOptimizer = () => {
             <div className="mx-4 md:mx-6 flex justify-center">
               <button
                 onClick={optimizeVacations}
-                className="px-6 py-3 bg-[#7c4c46] text-white font-semibold hover:bg-[#d95f17] flex items-center justify-center gap-2 rounded transition-colors"
+                className="px-6 py-3 bg-[#7c4c46] text-white font-semibold hover:bg-[#653934] flex items-center justify-center gap-2 rounded transition-colors"
               >
                 <Calendar size={20} />
                 Optimizar mis vacaciones
@@ -930,7 +932,7 @@ const VacationOptimizer = () => {
 
       {/* Output Section - Resume */}
       {showCalendar && (
-        <div ref={outputRef} className="sticky top-0 z-10 md:static border-b border-gray-200 bg-gray-50">
+        <div ref={outputRef} className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
             <div className="grid grid-cols-3 gap-4 md:gap-8">
               <div className="text-center">
@@ -1009,7 +1011,7 @@ const VacationOptimizer = () => {
       <footer className={`py-8 px-4 md:px-6 ${showCalendar ? "mt-20" : ""}`}>
         <div className="max-w-7xl mx-auto text-center">
           <p className="text-gray-600 text-sm">
-            Feito con <span className="text-[#7c4c46]">♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/">Clara Iglesias</a> (+ Claude Code)
+            Feito con <span className="text-[#7c4c46]">♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/">Clara Iglesias</a>
           </p>
           <p className="text-gray-600 text-sm mt-2">
             Ver repositorio en <a href="https://github.com/claraiis/devacas_">Github</a>

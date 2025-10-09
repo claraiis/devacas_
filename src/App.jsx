@@ -390,15 +390,16 @@ const VacationOptimizer = () => {
     const isProposed = optimizedDays.includes(dateStr);
     const newOverrides = { ...config.manualOverrides };
 
-    // Calcular días actualmente usados
+    // Calcular días usados (propuestos + confirmados)
     const confirmedCount = Object.values(config.manualOverrides).filter(v => v === 'confirmed').length;
     const proposedCount = optimizedDays.filter(d => !config.manualOverrides[d]).length;
     const totalUsed = confirmedCount + proposedCount;
     const vacationDaysNumber = config.vacationDays === '' ? 0 : config.vacationDays;
 
-    // Ciclo circular: normal → propuesto → confirmado → bloqueado → normal
+    // Nuevo ciclo: propuesto → confirmado → bloqueado → normal
+    // Normal → confirmado (si hay días disponibles)
     if (isProposed && !current) {
-      // Día propuesto sin override → confirmado (simplemente cambia de estado, no añade días)
+      // Día propuesto → confirmado (no añade al contador, solo cambia de estado)
       newOverrides[dateStr] = 'confirmed';
     } else if (current === 'confirmed') {
       // Confirmado → bloqueado
@@ -408,14 +409,13 @@ const VacationOptimizer = () => {
       delete newOverrides[dateStr];
       setOptimizedDays(prev => prev.filter(d => d !== dateStr));
     } else {
-      // Normal → siguiente estado (aquí sí necesitamos validar disponibilidad)
+      // Normal → confirmado (si hay días disponibles)
       if (!isProposed) {
         if (totalUsed < vacationDaysNumber) {
-          // Hay días disponibles → propuesta (azul)
-          setOptimizedDays(prev => [...prev, dateStr]);
+          // Hay días disponibles → confirmar directamente
+          newOverrides[dateStr] = 'confirmed';
         } else {
-          // No hay días disponibles → bloqueado (rojo)
-          newOverrides[dateStr] = 'blocked';
+          // No hay días disponibles → mostrar banner
           setShowLimitBanner(true);
           setTimeout(() => setShowLimitBanner(false), 5000);
         }
@@ -477,9 +477,9 @@ const VacationOptimizer = () => {
         holidayName = nationalHoliday?.localName || regionalHoliday?.name || customHoliday?.name || '';
       }
 
-      if (isHoliday(date)) {
-        borderColor = 'border-purple-500';
-      } else if (override === 'confirmed') {
+      // Prioridad de colores: confirmado > bloqueado > propuesto
+      // Los festivos y fines de semana se quedan en gris sin borde de color
+      if (override === 'confirmed') {
         borderColor = 'border-green-500';
       } else if (override === 'blocked') {
         borderColor = 'border-red-500';
@@ -1030,7 +1030,6 @@ const VacationOptimizer = () => {
               {/* Leyenda de colores */}
               <div className="grid grid-cols-2 md:flex md:flex-wrap gap-4 md:gap-6 text-xs md:text-sm">
                 {[
-                  { color: 'purple', label: 'Festivo' },
                   { color: 'blue', label: 'Propuesto' },
                   { color: 'green', label: 'Reservado' },
                   { color: 'red', label: 'Bloqueado' }

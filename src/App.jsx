@@ -68,6 +68,7 @@ const VacationOptimizer = () => {
   const calendarRef = useRef(null);
   const outputRef = useRef(null);
   const section3Ref = useRef(null);
+  const holidayDateInputRef = useRef(null);
 
   // Cerrar modal con tecla ESC
   useEffect(() => {
@@ -166,13 +167,31 @@ const VacationOptimizer = () => {
       setHolidayError('Debes indicar el nombre del festivo.');
       return;
     }
+    if (!newHoliday.date) {
+      setHolidayError('Debes indicar la fecha del festivo.');
+      return;
+    }
+    // Validar formato DD/MM
+    const datePattern = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])$/;
+    if (!datePattern.test(newHoliday.date)) {
+      setHolidayError('Formato de fecha inválido. Usa DD/MM (Ej: 25/12).');
+      return;
+    }
     if (newHoliday.date && newHoliday.name) {
+      // Convertir DD/MM a formato YYYY-MM-DD
+      const [day, month] = newHoliday.date.split('/');
+      const fullDate = `${config.year}-${month}-${day}`;
       setConfig(prev => ({
         ...prev,
-        customHolidays: [...prev.customHolidays, newHoliday]
+        customHolidays: [...prev.customHolidays, { date: fullDate, name: newHoliday.name }]
       }));
       setNewHoliday({ date: '', name: '' });
       setHolidayError('');
+
+      // Hacer focus en el campo de fecha para añadir otro festivo
+      setTimeout(() => {
+        holidayDateInputRef.current?.focus();
+      }, 0);
     }
   };
 
@@ -206,6 +225,7 @@ const VacationOptimizer = () => {
   };
 
   const optimizeVacations = () => {
+    const vacationDays = config.vacationDays === '' ? 0 : config.vacationDays;
     const startDate = new Date(config.year, 0, 1);
     const endDate = new Date(config.year, 11, 31);
 
@@ -290,7 +310,7 @@ const VacationOptimizer = () => {
 
     // Calcular días disponibles (descontando confirmados)
     const confirmedCount = Object.values(config.manualOverrides).filter(v => v === 'confirmed').length;
-    let remainingDays = config.vacationDays - confirmedCount;
+    let remainingDays = vacationDays - confirmedCount;
     const selected = [];
     const usedMonths = new Map(); // Para distribuir mejor por el año
 
@@ -374,6 +394,7 @@ const VacationOptimizer = () => {
     const confirmedCount = Object.values(config.manualOverrides).filter(v => v === 'confirmed').length;
     const proposedCount = optimizedDays.filter(d => !config.manualOverrides[d]).length;
     const totalUsed = confirmedCount + proposedCount;
+    const vacationDaysNumber = config.vacationDays === '' ? 0 : config.vacationDays;
 
     // Ciclo circular: normal → propuesto → confirmado → bloqueado → normal
     if (isProposed && !current) {
@@ -389,7 +410,7 @@ const VacationOptimizer = () => {
     } else {
       // Normal → siguiente estado (aquí sí necesitamos validar disponibilidad)
       if (!isProposed) {
-        if (totalUsed < config.vacationDays) {
+        if (totalUsed < vacationDaysNumber) {
           // Hay días disponibles → propuesta (azul)
           setOptimizedDays(prev => [...prev, dateStr]);
         } else {
@@ -501,7 +522,8 @@ const VacationOptimizer = () => {
 
   const confirmedDays = Object.values(config.manualOverrides).filter(v => v === 'confirmed').length;
   const proposedDays = optimizedDays.filter(d => !config.manualOverrides[d]).length;
-  const availableDays = config.vacationDays - confirmedDays - proposedDays;
+  const vacationDaysNumber = config.vacationDays === '' ? 0 : config.vacationDays;
+  const availableDays = vacationDaysNumber - confirmedDays - proposedDays;
 
   const downloadCalendar = async () => {
     const vacationDays = optimizedDays.filter(dateStr => {
@@ -571,7 +593,7 @@ const VacationOptimizer = () => {
   };
 
   return (
-    <div className={`bg-white flex flex-col ${!showCalendar ? "min-h-screen" : ""}`}>
+    <div className={`bg-white flex flex-col overflow-x-hidden ${!showCalendar ? "min-h-screen" : ""}`}>
       {/* Header */}
       <header className="py-6 px-4 md:px-6">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -762,20 +784,20 @@ const VacationOptimizer = () => {
                   <input
                     type="number"
                     value={config.vacationDays}
-                    onChange={(e) => setConfig(prev => ({ ...prev, vacationDays: parseInt(e.target.value) || 0 }))}
+                    onChange={(e) => setConfig(prev => ({ ...prev, vacationDays: e.target.value === '' ? '' : parseInt(e.target.value) }))}
                     className="flex-1 p-2 border border-gray-300 rounded"
                     min="0"
                   />
                   <select
                     value={config.vacationType}
                     onChange={(e) => setConfig(prev => ({ ...prev, vacationType: e.target.value }))}
-                    className="py-2 pl-2 pr-8 border border-gray-300 rounded"
+                    className="flex-1 py-2 pl-2 pr-8 border border-gray-300 rounded"
                   >
                     <option value="laborables">laborables</option>
                     <option value="naturales">naturales</option>
                   </select>
                 </div>
-                {config.country === 'ES' && config.vacationDays < 22 && (
+                {config.country === 'ES' && (config.vacationDays === '' || config.vacationDays < 22) && (
                   <p className="text-sm text-orange-600 mt-1">
                     ⚠️ En España el mínimo legal son 22 días laborables.
                   </p>
@@ -814,10 +836,23 @@ const VacationOptimizer = () => {
           <div className="px-4 md:px-6 py-6">
             <div className="flex flex-col md:flex-row gap-4 mb-4">
               <input
-                type="date"
+                ref={holidayDateInputRef}
+                type="text"
                 value={newHoliday.date}
-                onChange={(e) => setNewHoliday(prev => ({ ...prev, date: e.target.value }))}
+                onChange={(e) => {
+                  let value = e.target.value.replace(/[^\d]/g, ''); // Solo números
+
+                  // Formatear automáticamente con /
+                  if (value.length >= 2) {
+                    value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                  }
+
+                  setNewHoliday(prev => ({ ...prev, date: value }));
+                  if (holidayError) setHolidayError('');
+                }}
+                placeholder="DD/MM (Ej: 25/12)"
                 className="flex-1 p-2 border border-gray-300 rounded"
+                maxLength="5"
               />
               <input
                 type="text"
@@ -974,7 +1009,7 @@ const VacationOptimizer = () => {
                 <div className="text-sm text-gray-600">Festivos</div>
               </div>
               <div className="text-center">
-                <div className="text-4xl md:text-5xl font-bold mb-2">{config.vacationDays}</div>
+                <div className="text-4xl md:text-5xl font-bold mb-2">{vacationDaysNumber}</div>
                 <div className="text-sm text-gray-600">Disponibles</div>
               </div>
               <div className="text-center">
@@ -1011,7 +1046,7 @@ const VacationOptimizer = () => {
           {/* Banner de límite alcanzado */}
           {showLimitBanner && (
             <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 mb-6">
-              <p className="font-medium">Ya has utilizado todos tus días de vacaciones disponibles ({config.vacationDays} días). Elimina días reservados o propuestos para añadir más.</p>
+              <p className="font-medium">Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días reservados o propuestos para añadir más.</p>
             </div>
           )}
 

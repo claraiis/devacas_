@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronUp, Plus, X, Calendar, Download, HelpCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, X, Calendar, Download, HelpCircle, Info } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -64,6 +64,7 @@ const VacationOptimizer = () => {
   const [showLimitBanner, setShowLimitBanner] = useState(false);
   const [holidayError, setHolidayError] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showPostalCodeTooltip, setShowPostalCodeTooltip] = useState(false);
   const calendarRef = useRef(null);
   const outputRef = useRef(null);
   const section3Ref = useRef(null);
@@ -716,7 +717,24 @@ const VacationOptimizer = () => {
               </div>
               
               <div>
-                <label className="block mb-2 font-medium">Código postal</label>
+                <label className="block mb-2 font-medium flex items-center gap-2">
+                  Código postal
+                  <div className="relative group">
+                    <Info
+                      size={18}
+                      className="text-gray-500 cursor-help"
+                      onClick={() => {
+                        setShowPostalCodeTooltip(true);
+                        setTimeout(() => setShowPostalCodeTooltip(false), 3000);
+                      }}
+                    />
+                    <div className={`absolute left-0 top-full mt-2 w-64 p-3 bg-gray-900 text-white text-sm rounded shadow-lg transition-all duration-200 z-20 ${
+                      showPostalCodeTooltip ? 'opacity-100 visible' : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'
+                    }`}>
+                      Los días festivos se calculan teniendo en cuenta el código postal indicado
+                    </div>
+                  </div>
+                </label>
                 <input
                   type="text"
                   value={config.postalCode}

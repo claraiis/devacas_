@@ -43,7 +43,7 @@ const POSTAL_TO_REGION = {
 };
 
 const VacationOptimizer = () => {
-  const [expanded, setExpanded] = useState({ section1: true, section2: false, section3: false });
+  const [expanded, setExpanded] = useState({ section1: false, section2: false, section3: false });
   const [config, setConfig] = useState({
     country: 'ES',
     postalCode: '',

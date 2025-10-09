@@ -1042,7 +1042,7 @@ const VacationOptimizer = () => {
             {/* Leyenda centrada */}
             <div className="flex flex-col md:flex-row items-center justify-center mt-6 mb-6 gap-6 md:gap-0 border border-gray-200 py-6 rounded-[4px]">
               <div className="w-full md:w-1/2 flex justify-center md:justify-end md:pr-4 order-2 md:order-1">
-                <p className="text-sm text-gray-600">Haz clic en una fecha para cambiar su estado</p>
+                <p className="text-sm">Haz clic en una fecha para cambiar su estado</p>
               </div>
               {/* Leyenda de colores */}
               <div className="w-full md:w-1/2 flex justify-center md:justify-start md:pl-4 order-1 md:order-2">

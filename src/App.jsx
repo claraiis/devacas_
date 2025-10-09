@@ -582,8 +582,8 @@ const VacationOptimizer = () => {
             onClick={() => setShowHelpModal(true)}
             className="flex items-center gap-2 px-4 py-2 text-black hover:bg-[#FFF7ED] rounded-[4px] transition-colors"
           >
-            <HelpCircle size={20} />
-            <span className="hidden md:inline">Ayuda</span>
+            <Info size={20} />
+            <span className="hidden md:inline">Info</span>
           </button>
         </div>
       </header>

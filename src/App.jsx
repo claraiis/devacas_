@@ -521,13 +521,29 @@ const VacationOptimizer = () => {
         return;
       }
 
-      // Convertir el calendario a canvas
+      // Guardar el ancho original del viewport
+      const isMobile = window.innerWidth < 768;
+      const originalWidth = calendarElement.style.width;
+
+      // Si es móvil, forzar ancho desktop temporalmente para la captura
+      if (isMobile) {
+        calendarElement.style.width = '1200px';
+      }
+
+      // Convertir el calendario a canvas con escala ajustada
       const canvas = await html2canvas(calendarElement, {
-        scale: 2,
+        scale: isMobile ? 1.5 : 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        width: isMobile ? 1200 : calendarElement.scrollWidth,
+        windowWidth: isMobile ? 1200 : window.innerWidth
       });
+
+      // Restaurar ancho original
+      if (isMobile) {
+        calendarElement.style.width = originalWidth;
+      }
 
       // Crear PDF
       const imgData = canvas.toDataURL('image/png');

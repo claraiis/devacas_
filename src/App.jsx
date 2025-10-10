@@ -1129,11 +1129,11 @@ const VacationOptimizer = () => {
 
       {/* Footer */}
       <footer className={`py-8 px-4 md:px-6 ${showCalendar ? "mt-20" : ""}`}>
-        <div className="max-w-7xl mx-auto text-center">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-2">
           <p className="text-gray-600 text-sm">
             Hecho con <span className="text-[#7c4c46]">♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/">Clara Iglesias</a>
           </p>
-          <p className="text-gray-600 text-sm mt-2">
+          <p className="text-gray-600 text-sm">
             <a href="https://github.com/claraiis/devacas_">Ver repositorio en Github</a>
           </p>
         </div>

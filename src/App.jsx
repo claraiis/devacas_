@@ -66,6 +66,7 @@ const VacationOptimizer = () => {
   const [postalCodeError, setPostalCodeError] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showPostalCodeTooltip, setShowPostalCodeTooltip] = useState(false);
+  const [activeTooltip, setActiveTooltip] = useState(null);
   const calendarRef = useRef(null);
   const outputRef = useRef(null);
   const section3Ref = useRef(null);
@@ -88,6 +89,15 @@ const VacationOptimizer = () => {
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
+  }, [showHelpModal]);
+
+  // Controlar overflow del body al abrir modal
+  useEffect(() => {
+    if (showHelpModal) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+    }
   }, [showHelpModal]);
 
   // Cargar configuración desde localStorage
@@ -228,6 +238,19 @@ const VacationOptimizer = () => {
     }));
   };
 
+  // Función auxiliar para normalizar fechas a medianoche local
+  const normalizeDate = (date) => {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  };
+
+  // Función auxiliar para convertir Date a string YYYY-MM-DD (siempre en local)
+  const getDateStr = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const isWeekend = (date) => {
     const day = date.getDay();
     if (config.workDays === 'L-V') return day === 0 || day === 6;
@@ -236,11 +259,7 @@ const VacationOptimizer = () => {
   };
 
   const isHoliday = (date) => {
-    // Usar fecha local en lugar de UTC para evitar desfases de zona horaria
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    const dateStr = getDateStr(date);
 
     const allHolidays = [
       ...nationalHolidays.map(h => h.date),
@@ -255,18 +274,12 @@ const VacationOptimizer = () => {
     const startDate = new Date(config.year, 0, 1);
     const endDate = new Date(config.year, 11, 31);
 
-    const getDateStr = (date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
     // Identificar todos los días libres (festivos + fines de semana + confirmados)
     const offDays = new Set();
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = getDateStr(d);
-      if (isWeekend(d) || isHoliday(d) || config.manualOverrides[dateStr] === 'confirmed') {
+      const normalized = normalizeDate(d);
+      const dateStr = getDateStr(normalized);
+      if (isWeekend(normalized) || isHoliday(normalized) || config.manualOverrides[dateStr] === 'confirmed') {
         offDays.add(dateStr);
       }
     }
@@ -276,15 +289,16 @@ const VacationOptimizer = () => {
     let currentGap = null;
 
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = getDateStr(d);
+      const normalized = normalizeDate(d);
+      const dateStr = getDateStr(normalized);
       const isBlocked = config.manualOverrides[dateStr] === 'blocked';
       const isOff = offDays.has(dateStr);
 
       if (!isOff && !isBlocked) {
         if (!currentGap) {
-          currentGap = { start: new Date(d), days: [], startDay: d.getDay() };
+          currentGap = { start: normalizeDate(d), days: [], startDay: normalized.getDay() };
         }
-        currentGap.days.push(new Date(d));
+        currentGap.days.push(normalizeDate(d));
       } else {
         if (currentGap) {
           gaps.push(currentGap);
@@ -301,10 +315,11 @@ const VacationOptimizer = () => {
 
       // Contar días libres antes del gap
       let daysBefore = 0;
-      let d = new Date(firstDate);
+      let d = normalizeDate(firstDate);
       d.setDate(d.getDate() - 1);
       while (daysBefore < 30) {
-        const dateStr = getDateStr(d);
+        const normalized = normalizeDate(d);
+        const dateStr = getDateStr(normalized);
         if (!offDays.has(dateStr)) break;
         daysBefore++;
         d.setDate(d.getDate() - 1);
@@ -312,10 +327,11 @@ const VacationOptimizer = () => {
 
       // Contar días libres después del gap
       let daysAfter = 0;
-      d = new Date(lastDate);
+      d = normalizeDate(lastDate);
       d.setDate(d.getDate() + 1);
       while (daysAfter < 30) {
-        const dateStr = getDateStr(d);
+        const normalized = normalizeDate(d);
+        const dateStr = getDateStr(normalized);
         if (!offDays.has(dateStr)) break;
         daysAfter++;
         d.setDate(d.getDate() + 1);
@@ -411,7 +427,21 @@ const VacationOptimizer = () => {
     }, 100);
   };
 
-  const handleDayClick = (dateStr) => {
+  const handleDayClick = (dateStr, hasHoliday, e) => {
+    // En móvil, si es un festivo y el tooltip no está visible, mostrarlo primero
+    if (hasHoliday && activeTooltip !== dateStr && window.innerWidth < 768) {
+      e.stopPropagation();
+      setActiveTooltip(dateStr);
+      // Ocultar tooltip después de 3 segundos
+      setTimeout(() => setActiveTooltip(null), 3000);
+      return;
+    }
+
+    // Ocultar tooltip si estaba visible
+    if (activeTooltip === dateStr) {
+      setActiveTooltip(null);
+    }
+
     const current = config.manualOverrides[dateStr];
     const isProposed = optimizedDays.includes(dateStr);
     const newOverrides = { ...config.manualOverrides };
@@ -480,22 +510,20 @@ const VacationOptimizer = () => {
     // Días del mes
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(config.year, month, d);
-      const year = date.getFullYear();
-      const monthNum = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${monthNum}-${day}`;
+      const normalized = normalizeDate(date);
+      const dateStr = getDateStr(normalized);
       const override = config.manualOverrides[dateStr];
 
       let borderColor = 'border-gray-200';
       let bgColor = 'bg-white';
       let holidayName = '';
 
-      if (isWeekend(date) || isHoliday(date)) {
+      if (isWeekend(normalized) || isHoliday(normalized)) {
         bgColor = 'bg-gray-100';
       }
 
       // Buscar nombre del festivo
-      if (isHoliday(date)) {
+      if (isHoliday(normalized)) {
         const nationalHoliday = nationalHolidays.find(h => h.date === dateStr);
         const regionalHoliday = regionalHolidays.find(h => h.date === dateStr);
         const customHoliday = config.customHolidays.find(h => h.date === dateStr);
@@ -518,13 +546,15 @@ const VacationOptimizer = () => {
       days.push(
         <div
           key={d}
-          onClick={() => handleDayClick(dateStr)}
+          onClick={(e) => handleDayClick(dateStr, !!holidayName, e)}
           title={holidayName}
           className={`h-8 flex items-center justify-center text-sm cursor-pointer border-2 rounded ${borderColor} ${bgColor} hover:opacity-70 transition-opacity relative group`}
         >
           {d}
           {holidayName && (
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+            <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded transition-opacity pointer-events-none whitespace-nowrap z-10 ${
+              activeTooltip === dateStr ? 'opacity-100' : 'opacity-0 md:group-hover:opacity-100'
+            }`}>
               {holidayName}
             </div>
           )}

@@ -864,6 +864,11 @@ const VacationOptimizer = () => {
                   setNewHoliday(prev => ({ ...prev, date: value }));
                   if (holidayError) setHolidayError('');
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    addCustomHoliday();
+                  }
+                }}
                 placeholder="DD/MM (Ej: 25/12)"
                 className="flex-1 p-2 border border-gray-300 rounded"
                 maxLength="5"
@@ -874,6 +879,11 @@ const VacationOptimizer = () => {
                 onChange={(e) => {
                   setNewHoliday(prev => ({ ...prev, name: e.target.value }));
                   if (holidayError) setHolidayError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    addCustomHoliday();
+                  }
                 }}
                 placeholder="Nombre del festivo"
                 className="flex-1 p-2 border border-gray-300 rounded"

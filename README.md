@@ -22,7 +22,7 @@ Optimiza tus días de vacaciones combinándolos estratégicamente con festivos y
 
 1. **Configura tu situación**: país, código postal, año, días de vacaciones (laborables o naturales)
 2. **Añade festivos extras**: festivos de convenio o locales no detectados automáticamente
-3. **Define preferencias**: días que trabajas (L-V, L-S, personalizado) y si tienes bloques semanales obligatorios
+3. **Personaliza tu calendario**: días que trabajas (L-V, L-S, aleatorios), si tienes bloques semanales obligatorios o si quieres priorizar verano o Navidad.
 4. **Obtén tu calendario optimizado**: el algoritmo encuentra los mejores huecos para maximizar días libres
 5. **Ajusta manualmente**: confirma, bloquea o libera días según tus necesidades
 

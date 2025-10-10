@@ -1,4 +1,4 @@
-import React from 'react';
+import { memo } from 'react';
 import { THEME_COLORS } from '../constants/colors';
 
 const MONTH_NAMES = [
@@ -18,7 +18,7 @@ const MONTH_NAMES = [
 
 const WEEKDAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-const CalendarMonth = ({
+const CalendarMonth = memo(({
   month,
   year,
   manualOverrides,
@@ -27,8 +27,7 @@ const CalendarMonth = ({
   getDateStr,
   isWeekend,
   isHoliday,
-  nationalHolidays,
-  regionalHolidays,
+  getHolidayInfo,
   optimizedDays,
   activeTooltip,
   onDayClick
@@ -59,11 +58,9 @@ const CalendarMonth = ({
     }
 
     if (isHoliday(normalized)) {
-      const nationalHoliday = nationalHolidays.find(h => h.date === dateStr);
-      const regionalHoliday = regionalHolidays.find(h => h.date === dateStr);
-      const customHoliday = customHolidays.find(h => h.date === dateStr);
-
-      holidayName = nationalHoliday?.localName || regionalHoliday?.name || customHoliday?.name || '';
+      // Usar función optimizada O(1) en lugar de 3 búsquedas lineales O(n)
+      const holidayInfo = getHolidayInfo(dateStr, customHolidays);
+      holidayName = holidayInfo?.name || '';
     }
 
     if (override === 'confirmed') {
@@ -111,6 +108,19 @@ const CalendarMonth = ({
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Solo re-renderizar si cambian estas props específicas
+  // Retorna true si las props son iguales (NO re-renderizar)
+  // Retorna false si las props son diferentes (SÍ re-renderizar)
+  return (
+    prevProps.month === nextProps.month &&
+    prevProps.year === nextProps.year &&
+    prevProps.manualOverrides === nextProps.manualOverrides &&
+    prevProps.optimizedDays === nextProps.optimizedDays &&
+    prevProps.activeTooltip === nextProps.activeTooltip &&
+    prevProps.customHolidays === nextProps.customHolidays &&
+    prevProps.getHolidayInfo === nextProps.getHolidayInfo
+  );
+});
 
 export default CalendarMonth;

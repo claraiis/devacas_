@@ -5,6 +5,7 @@ import useDateFormatter from './hooks/useDateFormatter';
 import useHolidays from './hooks/useHolidays';
 import useCalendarState from './hooks/useCalendarState';
 import useVacationOptimizer from './hooks/useVacationOptimizer';
+import useDebounceLocalStorage from './hooks/useDebounceLocalStorage';
 import { POSTAL_TO_REGION } from './constants/holidays';
 import { THEME_COLORS } from './constants/colors';
 
@@ -38,7 +39,7 @@ const VacationOptimizer = () => {
   const modalRef = useRef(null);
 
   const { normalizeDate, getDateStr } = useDateFormatter();
-  const { nationalHolidays, regionalHolidays } = useHolidays(config);
+  const { nationalHolidays, regionalHolidays, getHolidayInfo } = useHolidays(config);
   const {
     optimizedDays,
     setOptimizedDays,
@@ -149,10 +150,9 @@ const VacationOptimizer = () => {
     }
   }, []);
 
-  // Guardar configuración en localStorage
-  useEffect(() => {
-    localStorage.setItem('vacationConfig', JSON.stringify(config));
-  }, [config]);
+  // Guardar configuración en localStorage con debounce
+  // Reduce escrituras de ~50/segundo a 1 cada 500ms
+  useDebounceLocalStorage('vacationConfig', config, 500);
 
   const toggleSection = useCallback((section) => {
     setExpanded(prev => {
@@ -763,8 +763,7 @@ const VacationOptimizer = () => {
             getDateStr={getDateStr}
             isWeekend={isWeekend}
             isHoliday={isHoliday}
-            nationalHolidays={nationalHolidays}
-            regionalHolidays={regionalHolidays}
+            getHolidayInfo={getHolidayInfo}
             optimizedDays={optimizedDays}
             activeTooltip={activeTooltip}
             onDayClick={handleDayClick}

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 const POPULAR_VACATION_MONTHS = {
   JULY: 6,
@@ -17,7 +17,8 @@ const useVacationOptimizer = ({
   setExpanded,
   outputRef
 }) => {
-  const optimizeVacations = useCallback(() => {
+  // Memoizar el cálculo de días optimizados - solo recalcula cuando cambian las dependencias críticas
+  const memoizedOptimizedDays = useMemo(() => {
     const vacationDays = config.vacationDays === '' ? 0 : config.vacationDays;
     const startDate = new Date(config.year, 0, 1);
     const endDate = new Date(config.year, 11, 31);
@@ -161,7 +162,24 @@ const useVacationOptimizer = ({
       }
     }
 
-    setOptimizedDays(selected.map((day) => getDateStr(day)));
+    return selected.map((day) => getDateStr(day));
+  }, [
+    config.vacationDays,
+    config.year,
+    config.manualOverrides,
+    config.prioritizeSummerWinter,
+    config.weeklyBlocks,
+    config.vacationType,
+    config.workDays,
+    getDateStr,
+    isHoliday,
+    isWeekend,
+    normalizeDate
+  ]);
+
+  // Función optimizeVacations solo actualiza el estado, no recalcula
+  const optimizeVacations = useCallback(() => {
+    setOptimizedDays(memoizedOptimizedDays);
     setShowCalendar(true);
     setExpanded((prev) => ({ ...prev, section3: false }));
 
@@ -169,11 +187,7 @@ const useVacationOptimizer = ({
       outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
   }, [
-    config,
-    getDateStr,
-    isHoliday,
-    isWeekend,
-    normalizeDate,
+    memoizedOptimizedDays,
     outputRef,
     setExpanded,
     setOptimizedDays,

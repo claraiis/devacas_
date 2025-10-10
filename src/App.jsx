@@ -63,6 +63,7 @@ const VacationOptimizer = () => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [showLimitBanner, setShowLimitBanner] = useState(false);
   const [holidayError, setHolidayError] = useState('');
+  const [postalCodeError, setPostalCodeError] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showPostalCodeTooltip, setShowPostalCodeTooltip] = useState(false);
   const calendarRef = useRef(null);
@@ -168,6 +169,23 @@ const VacationOptimizer = () => {
 
       return newState;
     });
+  };
+
+  const handlePostalCodeChange = (value) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 5);
+    setConfig(prev => ({ ...prev, postalCode: cleaned }));
+
+    // Mostrar warning si el código no mapea a ninguna región (solo para España)
+    if (config.country === 'ES') {
+      const province = cleaned.substring(0, 2);
+      if (cleaned.length === 5 && !POSTAL_TO_REGION[province]) {
+        setPostalCodeError('Código postal no reconocido');
+      } else {
+        setPostalCodeError('');
+      }
+    } else {
+      setPostalCodeError('');
+    }
   };
 
   const addCustomHoliday = () => {
@@ -774,11 +792,14 @@ const VacationOptimizer = () => {
                 <input
                   type="text"
                   value={config.postalCode}
-                  onChange={(e) => setConfig(prev => ({ ...prev, postalCode: e.target.value }))}
+                  onChange={(e) => handlePostalCodeChange(e.target.value)}
                   placeholder="Ej: 15009"
                   className="w-full p-2 border border-gray-300 rounded"
                   maxLength="5"
                 />
+                {postalCodeError && (
+                  <p className="text-sm text-orange-600 mt-1">⚠️ {postalCodeError}</p>
+                )}
               </div>
               
               <div>

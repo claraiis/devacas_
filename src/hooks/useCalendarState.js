@@ -7,7 +7,8 @@ const useCalendarState = ({
   nationalHolidays,
   regionalHolidays,
   getDateStr,
-  setLastAction
+  setLastAction,
+  setShowLimitBanner
 }) => {
   const [optimizedDays, setOptimizedDays] = useState([]);
   const [activeTooltip, setActiveTooltip] = useState(null);
@@ -46,9 +47,10 @@ const useCalendarState = ({
     [config.manualOverrides]
   );
 
+  // Los días propuestos ahora están directamente confirmados, así que proposedDays siempre será 0
   const proposedDays = useMemo(
-    () => optimizedDays.filter((day) => !config.manualOverrides[day]).length,
-    [optimizedDays, config.manualOverrides]
+    () => 0,
+    []
   );
 
   const daysAssigned = useMemo(
@@ -84,28 +86,63 @@ const useCalendarState = ({
 
     const totalUsed = confirmedDays + proposedDays;
 
-    if (isProposed && !current) {
-      newOverrides[dateStr] = 'confirmed';
-      setLastAction({ date: dateStr, status: 'confirmado' });
-    } else if (current === 'confirmed') {
-      newOverrides[dateStr] = 'blocked';
-      setLastAction({ date: dateStr, status: 'bloqueado' });
-      // Si se bloqueó un día que era propuesto, invalidar optimizedDays
-      if (isProposed) {
-        setOptimizedDays((prev) => prev.filter((day) => day !== dateStr));
-      }
-    } else if (current === 'blocked') {
-      delete newOverrides[dateStr];
-      setOptimizedDays((prev) => prev.filter((day) => day !== dateStr));
-      setLastAction({ date: dateStr, status: 'desbloqueado' });
-    } else if (!isProposed) {
-      if (totalUsed < vacationDaysNumber) {
-        newOverrides[dateStr] = 'confirmed';
-        setLastAction({ date: dateStr, status: 'confirmado' });
-      } else {
-        // Si no hay días disponibles, permitir bloquear directamente
+    // Si es un día sugerido (está en optimizedDays), solo puede tener dos estados: confirmed o blocked
+    if (isProposed) {
+      if (current === 'confirmed') {
+        // Cambiar de confirmed a blocked
         newOverrides[dateStr] = 'blocked';
         setLastAction({ date: dateStr, status: 'bloqueado' });
+        setOptimizedDays((prev) => prev.filter((day) => day !== dateStr));
+        // Ocultar banner cuando se bloquea un día confirmado (ahora hay días disponibles)
+        if (setShowLimitBanner && totalUsed >= vacationDaysNumber) {
+          setShowLimitBanner(false);
+        }
+      } else {
+        // Si está blocked o no tiene estado, cambiar a confirmed
+        newOverrides[dateStr] = 'confirmed';
+        setLastAction({ date: dateStr, status: 'confirmado' });
+        // Ocultar banner si estaba visible
+        if (setShowLimitBanner) {
+          setShowLimitBanner(false);
+        }
+      }
+    } else {
+      // Días que no están en optimizedDays (días manuales)
+      // Pueden alternar entre: neutro -> confirmed -> blocked -> neutro
+      if (current === 'confirmed') {
+        // Cambiar de confirmed a blocked
+        newOverrides[dateStr] = 'blocked';
+        setLastAction({ date: dateStr, status: 'bloqueado' });
+        // Ocultar banner cuando se bloquea un día confirmado (ahora hay días disponibles)
+        if (setShowLimitBanner && totalUsed >= vacationDaysNumber) {
+          setShowLimitBanner(false);
+        }
+      } else if (current === 'blocked') {
+        // Cambiar de blocked a neutro (eliminar estado)
+        delete newOverrides[dateStr];
+        setLastAction({ date: dateStr, status: 'desbloqueado' });
+        // Ocultar banner cuando se desbloquea un día (ahora hay días disponibles)
+        if (setShowLimitBanner) {
+          setShowLimitBanner(false);
+        }
+      } else {
+        // Día sin estado (neutro): intentar confirmar
+        if (totalUsed < vacationDaysNumber) {
+          newOverrides[dateStr] = 'confirmed';
+          setLastAction({ date: dateStr, status: 'confirmado' });
+          // Ocultar banner si estaba visible
+          if (setShowLimitBanner) {
+            setShowLimitBanner(false);
+          }
+        } else {
+          // Ya tiene todos los días asignados e intenta confirmar otro
+          // Mostrar banner y bloquear el día para evitar confirmación accidental
+          if (setShowLimitBanner) {
+            setShowLimitBanner(true);
+          }
+          newOverrides[dateStr] = 'blocked';
+          setLastAction({ date: dateStr, status: 'bloqueado' });
+        }
       }
     }
 
@@ -118,6 +155,7 @@ const useCalendarState = ({
     proposedDays,
     setConfig,
     setLastAction,
+    setShowLimitBanner,
     vacationDaysNumber
   ]);
 

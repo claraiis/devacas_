@@ -39,6 +39,7 @@ const VacationOptimizer = () => {
   const section3Ref = useRef(null);
   const holidayDateInputRef = useRef(null);
   const modalRef = useRef(null);
+  const prevWorkDaysRef = useRef(config.workDays);
 
   const { normalizeDate, getDateStr } = useDateFormatter();
   const { nationalHolidays, regionalHolidays, getHolidayInfo } = useHolidays(config);
@@ -61,13 +62,56 @@ const VacationOptimizer = () => {
     nationalHolidays,
     regionalHolidays,
     getDateStr,
-    setLastAction
+    setLastAction,
+    setShowLimitBanner
   });
 
-  // Mostrar banner cuando se alcanza el límite de días
+  // Eliminar sábados confirmados cuando se cambia de L-S a L-V
   useEffect(() => {
-    setShowLimitBanner(daysAvailable === 0 && daysAssigned > 0);
-  }, [daysAvailable, daysAssigned]);
+    const prevWorkDays = prevWorkDaysRef.current;
+    const currentWorkDays = config.workDays;
+    
+    // Solo ejecutar si cambió de 'L-S' a 'L-V'
+    if (prevWorkDays === 'L-S' && currentWorkDays === 'L-V') {
+      // Usar función de actualización para acceder al estado actual
+      setConfig((prev) => {
+        // Buscar todos los sábados confirmados y eliminarlos
+        const saturdaysToRemove = [];
+        
+        Object.keys(prev.manualOverrides).forEach((dateStr) => {
+          if (prev.manualOverrides[dateStr] === 'confirmed') {
+            // Parsear la fecha (formato YYYY-MM-DD)
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const date = new Date(year, month - 1, day);
+            const dayOfWeek = date.getDay(); // 0 = domingo, 6 = sábado
+            
+            if (dayOfWeek === 6) { // Es sábado
+              saturdaysToRemove.push(dateStr);
+            }
+          }
+        });
+
+        if (saturdaysToRemove.length > 0) {
+          const newOverrides = { ...prev.manualOverrides };
+          saturdaysToRemove.forEach((dateStr) => {
+            delete newOverrides[dateStr];
+          });
+          
+          // También eliminar de optimizedDays
+          setOptimizedDays((prevOptimized) => 
+            prevOptimized.filter((day) => !saturdaysToRemove.includes(day))
+          );
+          
+          return { ...prev, manualOverrides: newOverrides };
+        }
+        
+        return prev;
+      });
+    }
+    
+    // Actualizar el ref con el valor actual
+    prevWorkDaysRef.current = currentWorkDays;
+  }, [config.workDays, setOptimizedDays]);
   const { optimizeVacations } = useVacationOptimizer({
     config,
     normalizeDate,
@@ -75,6 +119,7 @@ const VacationOptimizer = () => {
     isHoliday,
     isWeekend,
     setOptimizedDays,
+    setConfig,
     setShowCalendar,
     setExpanded,
     outputRef
@@ -695,22 +740,22 @@ const VacationOptimizer = () => {
                 </div>
               </div>
             </div>
-
-            {/* Botón separado */}
-            <div className="mx-4 md:mx-6 flex justify-center">
-              <button
-                onClick={optimizeVacations}
-                className="px-6 py-3 text-white font-semibold flex items-center justify-center gap-2 rounded transition-colors md:mt-6"
-                style={{ backgroundColor: THEME_COLORS.primary }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = THEME_COLORS.primaryHover}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = THEME_COLORS.primary}
-              >
-                <CalendarIcon size={20} />
-                Optimizar mis vacaciones
-              </button>
-            </div>
           </div>
         )}
+      </div>
+
+      {/* Botón Optimizar - Siempre visible */}
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 flex justify-center">
+        <button
+          onClick={optimizeVacations}
+          className="px-6 py-3 text-white font-semibold flex items-center justify-center gap-2 rounded transition-colors"
+          style={{ backgroundColor: THEME_COLORS.primary }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = THEME_COLORS.primaryHover}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = THEME_COLORS.primary}
+        >
+          <CalendarIcon size={20} />
+          Optimizar mis vacaciones
+        </button>
       </div>
 
           </div>
@@ -723,7 +768,7 @@ const VacationOptimizer = () => {
           <div className="max-w-7xl mx-auto px-4 md:px-6 py-4">
             <div className="grid grid-cols-3 gap-4 md:gap-8">
               <div className="text-center">
-                <div className="text-4xl md:text-5xl text-white font-bold mb-2">{daysGenerated}</div>
+                <div className="text-4xl md:text-5xl text-white font-bold mb-2">{vacationDaysNumber}</div>
                 <div className="text-sm text-white font-light">Generados</div>
               </div>
               <div className="text-center">
@@ -747,21 +792,15 @@ const VacationOptimizer = () => {
             <div className="w-full mt-6 mb-4 bg-gray-50 dark:bg-gray-800 py-6 rounded-[4px] flex flex-col items-center text-left md:text-center px-4">
               <div className="space-y-3 text-sm w-full text-black dark:text-white">
                 <p>
-                  Los días con
-                  <span className="inline-flex items-center border-2 border-[#7c4c46] rounded px-2 py-0.5 mx-1">borde marrón</span>
-                  son sugerencias del algoritmo. Haz clic en ellos para confirmarlos, bloquearlos o eliminarlos.
+                  Los días generados por el algoritmo se confirman automáticamente. Haz clic en ellos para rechazarlos si no te convienen.
                 </p>
                 <p>
-                  También puedes hacer clic en cualquier otra fecha del calendario para proponer un día nuevo o bloquearla según necesites.
+                  También puedes hacer clic en cualquier otra fecha del calendario para confirmarla o bloquearla según necesites.
                 </p>
               </div>
             </div>
             <div className="w-full flex justify-center mb-6">
               <div className="flex flex-wrap justify-center gap-6 text-sm text-black dark:text-white">
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 border-2 rounded" style={{ borderColor: THEME_COLORS.primary }}></div>
-                  <span>Propuesto</span>
-                </div>
                 <div className="flex items-center gap-3">
                   <div className="w-6 h-6 bg-green-100 dark:bg-green-900/50 border border-gray-200 dark:border-gray-600 rounded"></div>
                   <span>Confirmado</span>
@@ -776,7 +815,7 @@ const VacationOptimizer = () => {
           {/* Banner de límite alcanzado */}
           {showLimitBanner && (
             <div className="bg-orange-100 dark:bg-orange-900/30 border-l-4 border-orange-500 text-orange-700 dark:text-orange-300 p-4 mb-6">
-              <p className="font-medium">Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días reservados o propuestos para añadir más.</p>
+              <p className="font-medium">Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días confirmados para añadir más.</p>
             </div>
           )}
 

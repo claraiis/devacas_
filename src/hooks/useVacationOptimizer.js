@@ -13,6 +13,7 @@ const useVacationOptimizer = ({
   isHoliday,
   isWeekend,
   setOptimizedDays,
+  setConfig,
   setShowCalendar,
   setExpanded,
   outputRef
@@ -177,9 +178,22 @@ const useVacationOptimizer = ({
     normalizeDate
   ]);
 
-  // Función optimizeVacations solo actualiza el estado, no recalcula
+  // Función optimizeVacations actualiza el estado y marca los días como 'confirmed'
   const optimizeVacations = useCallback(() => {
     setOptimizedDays(memoizedOptimizedDays);
+    
+    // Marcar los días optimizados directamente como 'confirmed' en manualOverrides
+    setConfig((prev) => {
+      const newOverrides = { ...prev.manualOverrides };
+      // Solo marcar como 'confirmed' los días que no están bloqueados
+      memoizedOptimizedDays.forEach((dateStr) => {
+        if (prev.manualOverrides[dateStr] !== 'blocked') {
+          newOverrides[dateStr] = 'confirmed';
+        }
+      });
+      return { ...prev, manualOverrides: newOverrides };
+    });
+    
     setShowCalendar(true);
     setExpanded((prev) => ({ ...prev, section3: false }));
 
@@ -189,6 +203,7 @@ const useVacationOptimizer = ({
   }, [
     memoizedOptimizedDays,
     outputRef,
+    setConfig,
     setExpanded,
     setOptimizedDays,
     setShowCalendar

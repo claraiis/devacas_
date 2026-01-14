@@ -70,11 +70,10 @@ const CalendarMonth = memo(({
       bgColor = 'bg-green-100 dark:bg-green-900/50';
     } else if (override === 'blocked') {
       bgColor = 'bg-red-100 dark:bg-red-900/50';
-    } else if (optimizedDaysSet.has(dateStr)) {
-      borderColor = '';
     }
+    // Ya no mostramos borde marrón porque los días optimizados se confirman automáticamente
 
-    const isProposed = optimizedDaysSet.has(dateStr);
+    const isProposed = optimizedDaysSet.has(dateStr) && override !== 'confirmed' && override !== 'blocked';
 
     days.push(
       <div

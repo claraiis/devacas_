@@ -9,6 +9,7 @@ import useDebounceLocalStorage from './hooks/useDebounceLocalStorage';
 import { POSTAL_TO_REGION } from './constants/holidays';
 import { THEME_COLORS } from './constants/colors';
 import { useTheme } from './contexts/ThemeContext';
+import heroVideo from './assets/video-mar.mp4';
 
 const VacationOptimizer = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -141,18 +142,16 @@ const VacationOptimizer = () => {
     const handleScroll = () => {
       const triggerPoint = window.innerHeight * 0.5;
       const titleTop = heroTitleRef.current?.getBoundingClientRect().top ?? 0;
-      if (titleTop <= triggerPoint) {
-        if (!showForm) setShowForm(true);
-      } else if (showForm) {
-        setShowForm(false);
-      }
+      const shouldShow = titleTop <= triggerPoint;
+
+      setShowForm((prev) => (prev === shouldShow ? prev : shouldShow));
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
 
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [showForm]);
+  }, []);
 
   useEffect(() => {
     const currentPhrase = heroSuffixes[heroPhraseIndex];
@@ -394,7 +393,7 @@ const VacationOptimizer = () => {
       <div className="fixed inset-0 z-0">
         <video
           className="absolute inset-0 h-full w-full object-cover"
-          src="/src/assets/video-mar.mp4"
+          src={heroVideo}
           autoPlay
           loop
           muted

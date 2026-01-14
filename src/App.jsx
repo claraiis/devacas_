@@ -9,7 +9,6 @@ import useDebounceLocalStorage from './hooks/useDebounceLocalStorage';
 import { POSTAL_TO_REGION } from './constants/holidays';
 import { THEME_COLORS } from './constants/colors';
 import { useTheme } from './contexts/ThemeContext';
-import heroVideo from './assets/video-mar.mp4';
 
 const VacationOptimizer = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -393,7 +392,7 @@ const VacationOptimizer = () => {
       <div className="fixed inset-0 z-0">
         <video
           className="absolute inset-0 h-full w-full object-cover"
-          src={heroVideo}
+          src="https://irzives3xaevat4z.public.blob.vercel-storage.com/video-mar.mp4"
           autoPlay
           loop
           muted

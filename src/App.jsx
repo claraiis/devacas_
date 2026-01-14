@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Plus, X, Calendar as CalendarIcon, Info } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, X, Calendar as CalendarIcon, Info, Moon, Sun } from 'lucide-react';
 import Calendar from './components/Calendar';
 import useDateFormatter from './hooks/useDateFormatter';
 import useHolidays from './hooks/useHolidays';
@@ -8,8 +8,10 @@ import useVacationOptimizer from './hooks/useVacationOptimizer';
 import useDebounceLocalStorage from './hooks/useDebounceLocalStorage';
 import { POSTAL_TO_REGION } from './constants/holidays';
 import { THEME_COLORS } from './constants/colors';
+import { useTheme } from './contexts/ThemeContext';
 
 const VacationOptimizer = () => {
+  const { isDark, toggleTheme } = useTheme();
   const [expanded, setExpanded] = useState({ section1: false, section2: false, section3: false });
   const [config, setConfig] = useState({
     country: 'ES',
@@ -59,9 +61,13 @@ const VacationOptimizer = () => {
     nationalHolidays,
     regionalHolidays,
     getDateStr,
-    setShowLimitBanner,
     setLastAction
   });
+
+  // Mostrar banner cuando se alcanza el límite de días
+  useEffect(() => {
+    setShowLimitBanner(daysAvailable === 0 && daysAssigned > 0);
+  }, [daysAvailable, daysAssigned]);
   const { optimizeVacations } = useVacationOptimizer({
     config,
     normalizeDate,
@@ -144,9 +150,17 @@ const VacationOptimizer = () => {
 
   // Cargar configuración desde localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('vacationConfig');
-    if (saved) {
-      setConfig(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem('vacationConfig');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          setConfig(parsed);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading config from localStorage:', error);
+      // Continuar con la configuración por defecto
     }
   }, []);
 
@@ -193,20 +207,22 @@ const VacationOptimizer = () => {
 
   const handlePostalCodeChange = useCallback((value) => {
     const cleaned = value.replace(/\D/g, '').slice(0, 5);
-    setConfig(prev => ({ ...prev, postalCode: cleaned }));
-
-    // Mostrar warning si el código no mapea a ninguna región (solo para España)
-    if (config.country === 'ES') {
-      const province = cleaned.substring(0, 2);
-      if (cleaned.length === 5 && !POSTAL_TO_REGION[province]) {
-        setPostalCodeError('Código postal no reconocido');
+    setConfig(prev => {
+      // Mostrar warning si el código no mapea a ninguna región (solo para España)
+      if (prev.country === 'ES') {
+        const province = cleaned.substring(0, 2);
+        if (cleaned.length === 5 && !POSTAL_TO_REGION[province]) {
+          setPostalCodeError('Código postal no reconocido');
+        } else {
+          setPostalCodeError('');
+        }
       } else {
         setPostalCodeError('');
       }
-    } else {
-      setPostalCodeError('');
-    }
-  }, [config.country]);
+      
+      return { ...prev, postalCode: cleaned };
+    });
+  }, []);
 
   const addCustomHoliday = useCallback(() => {
     if (!newHoliday.name.trim()) {
@@ -250,26 +266,36 @@ const VacationOptimizer = () => {
 
 
   return (
-    <div className={`bg-white flex flex-col ${!showCalendar ? "min-h-screen" : ""}`}>
+    <div className={`bg-white dark:bg-gray-900 flex flex-col ${!showCalendar ? "min-h-screen" : ""} transition-colors`}>
       {/* Header */}
-      <header className="py-6 px-4 md:px-6">
+      <header className="py-6 px-4 md:px-6 dark:border-b dark:border-gray-700">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <h1 className="text-xl">
             <span className="font-semibold" style={{ color: THEME_COLORS.primaryBorder }}>de</span>
-            <span className="text-black font-semibold">vacas_</span>
+            <span className="text-black dark:text-white font-semibold">vacas_</span>
           </h1>
-          <button
-            onClick={() => setShowHelpModal(true)}
-            className="flex items-center gap-2 px-4 py-2 text-black rounded-[4px] transition-colors"
-            style={{
-              '--hover-bg': THEME_COLORS.secondary
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = THEME_COLORS.secondary}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            <Info size={20} />
-            <span className="hidden md:inline">Info</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-2 px-4 py-2 text-black dark:text-white rounded-[4px] transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+              aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            >
+              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+              <span className="hidden md:inline">{isDark ? 'Claro' : 'Oscuro'}</span>
+            </button>
+            <button
+              onClick={() => setShowHelpModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-black dark:text-white rounded-[4px] transition-colors"
+              style={{
+                '--hover-bg': THEME_COLORS.secondary
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = THEME_COLORS.secondary}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <Info size={20} />
+              <span className="hidden md:inline">Info</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -281,18 +307,18 @@ const VacationOptimizer = () => {
         >
           <div
             ref={modalRef}
-            className="bg-white rounded-[4px] max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white dark:bg-gray-800 rounded-[4px] max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
           >
             {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-              <h2 id="modal-title" className="text-2xl font-semibold">¿Cómo funciona devacas_?</h2>
+            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+              <h2 id="modal-title" className="text-2xl font-semibold text-black dark:text-white">¿Cómo funciona devacas_?</h2>
               <button
                 onClick={() => setShowHelpModal(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 aria-label="Cerrar modal"
               >
                 <X size={24} />
@@ -303,63 +329,63 @@ const VacationOptimizer = () => {
             <div className="px-6 py-6 space-y-8">
               {/* Sección 1: Eficiencia */}
               <section>
-                <p className="text-gray-700 mb-3">
+                <p className="text-gray-700 dark:text-gray-300 mb-3">
                   <strong>devacas_</strong> analiza todo el calendario del año para encontrar las mejores oportunidades de maximizar tus días libres,
                   priorizando periodos extendidos de vacaciones* según su ratio de eficiencia:
                 </p>
-                <div className="bg-orange-50 p-4 mb-3" style={{ borderLeft: `4px solid ${THEME_COLORS.primary}` }}>
-                  <p className="font-mono text-sm">
+                <div className="bg-orange-50 dark:bg-orange-900/30 p-4 mb-3" style={{ borderLeft: `4px solid ${THEME_COLORS.primary}` }}>
+                  <p className="font-mono text-sm text-gray-800 dark:text-gray-200">
                     <strong>Eficiencia</strong> = Días libres totales / Días de vacaciones gastados
                   </p>
                 </div>
-                <p className="text-gray-700 mb-3 text-sm">
+                <p className="text-gray-700 dark:text-gray-300 mb-3 text-sm">
                   *El algoritmo entiende por periodos extendidos de vacaciones aquellos de 3 o más días, buscando siempre el mejor ratio posible.
                 </p>
               </section>
 
               {/* Sección 2: Funcionamiento */}
               <section>
-                <h3 className="text-xl font-semibold mb-3 text-black">Máximo descanso personalizado</h3>
-                  <p className="text-gray-700 mb-3">
+                <h3 className="text-xl font-semibold mb-3 text-black dark:text-white">Máximo descanso personalizado</h3>
+                  <p className="text-gray-700 dark:text-gray-300 mb-3">
                   Mientras otras herramientas se limitan a decirte cuándo caen los puentes, <strong>devacas_</strong> se adapta a tu realidad.
                 </p>
-                <p className="text-gray-700 mb-3">
+                <p className="text-gray-700 dark:text-gray-300 mb-3">
                   Elige entre vacaciones en días naturales o laborables, define tus días de trabajo, añade festivos por convenio e indica si tienes alguna limitación a la hora de cogerte vacaciones.
                 </p>
-                <p className="text-gray-700 mb-2">
-                  A partir de ahí, el algoritmo busca los huecos más rentables y te propone un calendario optimizado para ti, no para “la media”.
+                <p className="text-gray-700 dark:text-gray-300 mb-2">
+                  A partir de ahí, el algoritmo busca los huecos más rentables y te propone un calendario optimizado para ti, no para "la media".
                 </p>
-                <p className="text-gray-700 mb-2">
-                  ¿Que un día no te convence? Lo quitas. 
+                <p className="text-gray-700 dark:text-gray-300 mb-2">
+                  ¿Que un día no te convence? Lo quitas.
                 </p>
-                <p className="text-gray-700 mb-2">
+                <p className="text-gray-700 dark:text-gray-300 mb-2">
                   ¿Que prefieres este otro? Lo reservas.
                 </p>
-                <p className="text-gray-700 mb-2">
+                <p className="text-gray-700 dark:text-gray-300 mb-2">
                   ¿Que este fin de semana se casa tu prima y tienes que estar aquí? Lo bloqueas.
                 </p>
               </section>
 
               {/* Sección 3: Fuentes */}
               <section>
-                <h3 className="text-xl font-semibold mb-3 text-black">Fuentes de datos</h3>
-                <p className="text-gray-700 mb-2">
+                <h3 className="text-xl font-semibold mb-3 text-black dark:text-white">Fuentes de datos</h3>
+                <p className="text-gray-700 dark:text-gray-300 mb-2">
                   Los festivos están incluidos directamente en el código de la aplicación.
                 </p>
-                <ul className="list-disc list-inside text-gray-700 space-y-1">
-                  <li><strong>Festivos nacionales:</strong> <a href="https://date.nager.at/">Nager.Date API</a></li>
-                  <li><strong>Festivos autonómicos:</strong> <a href="https://www.rtve.es/noticias/20251006/calendario-laboral-2026-festivos-puentes-nacionales-autonomicos/16744047.shtml">Este artículo recopilatorio de RTVE</a></li>
+                <ul className="list-disc list-inside text-gray-700 dark:text-gray-300 space-y-1">
+                  <li><strong>Festivos nacionales:</strong> <a href="https://date.nager.at/" className="text-blue-600 dark:text-blue-400 hover:underline">Nager.Date API</a></li>
+                  <li><strong>Festivos autonómicos:</strong> <a href="https://www.rtve.es/noticias/20251006/calendario-laboral-2026-festivos-puentes-nacionales-autonomicos/16744047.shtml" className="text-blue-600 dark:text-blue-400 hover:underline">Este artículo recopilatorio de RTVE</a></li>
                 </ul>
-                <p className="text-gray-700 text-sm mt-3">
+                <p className="text-gray-700 dark:text-gray-300 text-sm mt-3">
                   *Los datos se basan en el calendario oficial español. Puedes añadir festivos adicionales
                   en la sección "Festivos de convenio / locales" si tu empresa o localidad tiene días especiales.
                 </p>
               </section>
 
               {/* Nota final */}
-              <div className="bg-gray-50 rounded p-4 text-sm text-gray-600">
+              <div className="bg-gray-50 dark:bg-gray-700 rounded p-4 text-sm text-gray-600 dark:text-gray-300">
                 <p>
-                  💡 <strong>Recuerda:</strong> Esta es una herramienta de planificación. 
+                  💡 <strong>Recuerda:</strong> Esta es una herramienta de planificación.
                   Los días propuestos son sugerencias que puedes confirmar, modificar o eliminar según tus necesidades.
                   Verifica siempre las políticas de vacaciones de tu empresa.
                 </p>
@@ -373,8 +399,8 @@ const VacationOptimizer = () => {
       <div className={!showCalendar ? "flex-1 flex flex-col" : ""}>
         {/* Hero */}
         <div className="py-8 md:py-16 px-4 md:px-6 text-center">
-          <h1 className="text-3xl md:text-5xl font-bold mb-4">Sácale el máximo partido a tus vacaciones</h1>
-          <p className="text-lg md:text-xl text-gray-500">Convierte días sueltos en descansos significativos</p>
+          <h1 className="text-3xl md:text-5xl font-bold mb-4 text-black dark:text-white">Sácale el máximo partido a tus vacaciones</h1>
+          <p className="text-lg md:text-xl text-gray-500 dark:text-gray-400">Convierte días sueltos en descansos significativos</p>
         </div>
 
         {/* Configuration Forms */}
@@ -385,21 +411,21 @@ const VacationOptimizer = () => {
       <div>
         <button
           onClick={() => toggleSection('section1')}
-          className="w-full px-4 md:px-6 py-6 flex justify-between items-center hover:bg-gray-50 hover:rounded-[4px]"
+          className="w-full px-4 md:px-6 py-6 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-800 hover:rounded-[4px]"
         >
-          <h2 className="font-semibold text-xl text-black">1. Empecemos por lo básico</h2>
-          {expanded.section1 ? <ChevronUp /> : <ChevronDown />}
+          <h2 className="font-semibold text-xl text-black dark:text-white">1. Empecemos por lo básico</h2>
+          <span className="text-black dark:text-white">{expanded.section1 ? <ChevronUp /> : <ChevronDown />}</span>
         </button>
         
         {expanded.section1 && (
           <div className="px-4 md:px-6 py-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h3 className="block mb-2 font-medium">País</h3>
+                <h3 className="block mb-2 font-medium text-black dark:text-white">País</h3>
                 <select
                   value={config.country}
                   onChange={(e) => setConfig(prev => ({ ...prev, country: e.target.value }))}
-                  className="w-full py-2 pl-2 pr-8 border border-gray-300 rounded"
+                  className="w-full py-2 pl-2 pr-8 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded"
                   aria-labelledby="country-heading"
                 >
                   <option value="ES">España</option>
@@ -407,18 +433,18 @@ const VacationOptimizer = () => {
               </div>
 
               <div>
-                <h3 className="block mb-2 font-medium flex items-center gap-2">
+                <h3 className="block mb-2 font-medium flex items-center gap-2 text-black dark:text-white">
                   Código postal
                   <div className="relative group">
                     <Info
                       size={18}
-                      className="text-gray-500 cursor-help"
+                      className="text-gray-500 dark:text-gray-400 cursor-help"
                       onClick={() => {
                         setShowPostalCodeTooltip(true);
                         setTimeout(() => setShowPostalCodeTooltip(false), 3000);
                       }}
                     />
-                    <div className={`absolute left-0 top-full mt-2 w-64 p-3 bg-gray-900 text-white text-sm rounded-[4px] shadow-lg transition-all duration-200 z-20 ${
+                    <div className={`absolute left-0 top-full mt-2 w-64 p-3 bg-gray-900 dark:bg-gray-700 text-white text-sm rounded-[4px] shadow-lg transition-all duration-200 z-20 ${
                       showPostalCodeTooltip ? 'opacity-100 visible' : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'
                     }`}>
                       Los días festivos se calculan en base a este código postal.
@@ -430,21 +456,21 @@ const VacationOptimizer = () => {
                   value={config.postalCode}
                   onChange={(e) => handlePostalCodeChange(e.target.value)}
                   placeholder="Ej: 15009"
-                  className="w-full p-2 border border-gray-300 rounded"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded"
                   maxLength="5"
                   aria-labelledby="postal-code-heading"
                 />
                 {postalCodeError && (
-                  <p className="text-sm text-orange-600 mt-1">⚠️ {postalCodeError}</p>
+                  <p className="text-sm text-orange-600 dark:text-orange-400 mt-1">⚠️ {postalCodeError}</p>
                 )}
               </div>
 
               <div>
-                <h3 className="block mb-2 font-medium">Año</h3>
+                <h3 className="block mb-2 font-medium text-black dark:text-white">Año</h3>
                 <select
                   value={config.year}
                   onChange={(e) => setConfig(prev => ({ ...prev, year: parseInt(e.target.value) }))}
-                  className="w-full py-2 pl-2 pr-8 border border-gray-300 rounded"
+                  className="w-full py-2 pl-2 pr-8 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded"
                   aria-labelledby="year-heading"
                 >
                   <option value="2026">2026</option>
@@ -452,36 +478,40 @@ const VacationOptimizer = () => {
               </div>
 
               <div>
-                <h3 className="block mb-2 font-medium">Días de vacaciones</h3>
+                <h3 className="block mb-2 font-medium text-black dark:text-white">Días de vacaciones</h3>
                 <div className="flex gap-4">
                   <input
                     type="number"
                     value={config.vacationDays}
-                    onChange={(e) => setConfig(prev => ({ ...prev, vacationDays: e.target.value === '' ? '' : parseInt(e.target.value) }))}
-                    className="flex-1 p-2 border border-gray-300 rounded"
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = value === '' ? '' : parseInt(value, 10);
+                      setConfig(prev => ({ ...prev, vacationDays: isNaN(numValue) ? '' : numValue }));
+                    }}
+                    className="flex-1 p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded"
                     min="0"
                   />
                   <select
                     value={config.vacationType}
                     onChange={(e) => setConfig(prev => ({ ...prev, vacationType: e.target.value }))}
-                    className="flex-1 py-2 pl-2 pr-8 border border-gray-300 rounded"
+                    className="flex-1 py-2 pl-2 pr-8 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded"
                   >
                     <option value="laborables">laborables</option>
                     <option value="naturales">naturales</option>
                   </select>
                 </div>
                 {config.country === 'ES' && (config.vacationDays === '' || config.vacationDays < 22) && (
-                  <p className="text-sm text-orange-600 mt-1">
+                  <p className="text-sm text-orange-600 dark:text-orange-400 mt-1">
                     ⚠️ En España el mínimo legal son 22 días laborables.
                   </p>
                 )}
               </div>
             </div>
-            
+
             {(nationalHolidays.length > 0 || regionalHolidays.length > 0) && (
-              <div className="mt-6 p-4 bg-gray-50">
-                <h3 className="font-semibold mb-2">Festivos detectados:</h3>
-                <div className="text-sm space-y-1">
+              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800">
+                <h3 className="font-semibold mb-2 text-black dark:text-white">Festivos detectados:</h3>
+                <div className="text-sm space-y-1 text-gray-700 dark:text-gray-300">
                   {nationalHolidays.length > 0 && (
                     <p><strong>Nacionales:</strong> {nationalHolidays.length} festivos</p>
                   )}
@@ -499,10 +529,10 @@ const VacationOptimizer = () => {
       <div>
         <button
           onClick={() => toggleSection('section2')}
-          className="w-full px-4 md:px-6 py-6 flex justify-between items-center hover:bg-gray-50  hover:rounded-[4px]"
+          className="w-full px-4 md:px-6 py-6 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-800 hover:rounded-[4px]"
         >
-          <h2 className="font-semibold text-xl text-black">2. Festivos de convenio / locales</h2>
-          {expanded.section2 ? <ChevronUp /> : <ChevronDown />}
+          <h2 className="font-semibold text-xl text-black dark:text-white">2. Festivos de convenio / locales</h2>
+          <span className="text-black dark:text-white">{expanded.section2 ? <ChevronUp /> : <ChevronDown />}</span>
         </button>
         
         {expanded.section2 && (
@@ -529,7 +559,7 @@ const VacationOptimizer = () => {
                   }
                 }}
                 placeholder="DD/MM (Ej: 25/12)"
-                className="flex-1 p-2 border border-gray-300 rounded"
+                className="flex-1 p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded"
                 maxLength="5"
               />
               <input
@@ -545,7 +575,7 @@ const VacationOptimizer = () => {
                   }
                 }}
                 placeholder="Nombre del festivo"
-                className="flex-1 p-2 border border-gray-300 rounded"
+                className="flex-1 p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded"
               />
               <button
                 onClick={addCustomHoliday}
@@ -559,22 +589,22 @@ const VacationOptimizer = () => {
             </div>
 
             {holidayError && (
-              <p className="text-sm text-red-600 mb-4">{holidayError}</p>
+              <p className="text-sm text-red-600 dark:text-red-400 mb-4">{holidayError}</p>
             )}
-            
+
             {config.customHolidays.length > 0 && (
               <div className="space-y-2">
                 {config.customHolidays.map((holiday, idx) => {
                   const [year, month, day] = holiday.date.split('-');
                   const formattedDate = `${day}/${month}/${year}`;
                   return (
-                    <div key={idx} className="flex justify-between items-center p-3 bg-gray-50">
-                      <span>
+                    <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800">
+                      <span className="text-black dark:text-white">
                         <strong>{formattedDate}</strong> - {holiday.name}
                       </span>
                       <button
                         onClick={() => removeCustomHoliday(idx)}
-                        className="text-red-500 hover:text-red-700"
+                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                       >
                         <X size={20} />
                       </button>
@@ -591,12 +621,12 @@ const VacationOptimizer = () => {
       <div ref={section3Ref}>
         <button
           onClick={() => toggleSection('section3')}
-          className="w-full px-4 md:px-6 py-6 flex justify-between items-center hover:bg-gray-50 hover:rounded-[4px]"
+          className="w-full px-4 md:px-6 py-6 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-800 hover:rounded-[4px]"
         >
-          <h2 className="font-semibold text-xl text-black">3. Personalización</h2>
-          {expanded.section3 ? <ChevronUp /> : <ChevronDown />}
+          <h2 className="font-semibold text-xl text-black dark:text-white">3. Personalización</h2>
+          <span className="text-black dark:text-white">{expanded.section3 ? <ChevronUp /> : <ChevronDown />}</span>
         </button>
-        
+
         {expanded.section3 && (
           <div className="space-y-6">
             {/* Contenedor de preguntas - Grid de 2 columnas en desktop */}
@@ -613,7 +643,7 @@ const VacationOptimizer = () => {
                       className="w-5 h-5 cursor-pointer"
                       style={{ accentColor: THEME_COLORS.primary }}
                     />
-                    <span className="font-medium">Vacaciones en bloques semanales</span>
+                    <span className="font-medium text-black dark:text-white">Vacaciones en bloques semanales</span>
                   </label>
                 </div>
 
@@ -627,16 +657,16 @@ const VacationOptimizer = () => {
                       className="w-5 h-5 cursor-pointer"
                       style={{ accentColor: THEME_COLORS.primary }}
                     />
-                    <span className="font-medium">Priorizar verano y Navidad</span>
+                    <span className="font-medium text-black dark:text-white">Priorizar verano y Navidad</span>
                   </label>
                 </div>
               </div>
 
               {/* Columna derecha - Horario laboral */}
               <div>
-                <label className="block mb-3 font-medium">¿Qué días trabajas?</label>
+                <label className="block mb-3 font-medium text-black dark:text-white">¿Qué días trabajas?</label>
                 <div className="grid grid-cols-2 gap-4">
-                  <label htmlFor="workdays-lv" className="flex items-center gap-3 cursor-pointer">
+                  <label htmlFor="workdays-lv" className="flex items-center gap-3 cursor-pointer text-black dark:text-white">
                     <input
                       id="workdays-lv"
                       type="radio"
@@ -649,7 +679,7 @@ const VacationOptimizer = () => {
                     />
                     Lunes a viernes
                   </label>
-                  <label htmlFor="workdays-ls" className="flex items-center gap-3 cursor-pointer">
+                  <label htmlFor="workdays-ls" className="flex items-center gap-3 cursor-pointer text-black dark:text-white">
                     <input
                       id="workdays-ls"
                       type="radio"
@@ -714,8 +744,8 @@ const VacationOptimizer = () => {
         <div>
           <div className="max-w-7xl mx-auto px-4 md:px-6 py-6" ref={calendarRef}>
             {/* Leyenda */}
-            <div className="w-full mt-6 mb-4 bg-gray-50 py-6 rounded-[4px] flex flex-col items-center text-left md:text-center px-4">
-              <div className="space-y-3 text-sm w-full">
+            <div className="w-full mt-6 mb-4 bg-gray-50 dark:bg-gray-800 py-6 rounded-[4px] flex flex-col items-center text-left md:text-center px-4">
+              <div className="space-y-3 text-sm w-full text-black dark:text-white">
                 <p>
                   Los días con
                   <span className="inline-flex items-center border-2 border-[#7c4c46] rounded px-2 py-0.5 mx-1">borde marrón</span>
@@ -727,17 +757,17 @@ const VacationOptimizer = () => {
               </div>
             </div>
             <div className="w-full flex justify-center mb-6">
-              <div className="flex flex-wrap justify-center gap-6 text-sm">
+              <div className="flex flex-wrap justify-center gap-6 text-sm text-black dark:text-white">
                 <div className="flex items-center gap-3">
                   <div className="w-6 h-6 border-2 rounded" style={{ borderColor: THEME_COLORS.primary }}></div>
                   <span>Propuesto</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-green-100 border border-gray-200 rounded"></div>
+                  <div className="w-6 h-6 bg-green-100 dark:bg-green-900/50 border border-gray-200 dark:border-gray-600 rounded"></div>
                   <span>Confirmado</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-red-100 border border-gray-200 rounded"></div>
+                  <div className="w-6 h-6 bg-red-100 dark:bg-red-900/50 border border-gray-200 dark:border-gray-600 rounded"></div>
                   <span>Bloqueado</span>
                 </div>
               </div>
@@ -745,7 +775,7 @@ const VacationOptimizer = () => {
 
           {/* Banner de límite alcanzado */}
           {showLimitBanner && (
-            <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 mb-6">
+            <div className="bg-orange-100 dark:bg-orange-900/30 border-l-4 border-orange-500 text-orange-700 dark:text-orange-300 p-4 mb-6">
               <p className="font-medium">Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días reservados o propuestos para añadir más.</p>
             </div>
           )}
@@ -802,11 +832,11 @@ const VacationOptimizer = () => {
       {/* Footer */}
       <footer className={`py-8 px-4 md:px-6 ${showCalendar ? "mt-20" : ""}`}>
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-2">
-          <p className="text-gray-600 text-sm">
-            Hecho con <span style={{ color: THEME_COLORS.primary }}>♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/">Clara Iglesias</a>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
+            Hecho con <span style={{ color: THEME_COLORS.primary }}>♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/" className="hover:underline">Clara Iglesias</a>
           </p>
-          <p className="text-gray-600 text-sm">
-            <a href="https://github.com/claraiis/devacas_">Ver repositorio en Github</a>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
+            <a href="https://github.com/claraiis/devacas_" className="hover:underline">Ver repositorio en Github</a>
           </p>
         </div>
       </footer>

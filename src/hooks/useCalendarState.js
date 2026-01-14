@@ -7,7 +7,6 @@ const useCalendarState = ({
   nationalHolidays,
   regionalHolidays,
   getDateStr,
-  setShowLimitBanner,
   setLastAction
 }) => {
   const [optimizedDays, setOptimizedDays] = useState([]);
@@ -16,6 +15,12 @@ const useCalendarState = ({
   const vacationDaysNumber = useMemo(
     () => (config.vacationDays === '' ? 0 : config.vacationDays),
     [config.vacationDays]
+  );
+
+  // Convertir optimizedDays a Set para búsquedas O(1) en lugar de O(n)
+  const optimizedDaysSet = useMemo(
+    () => new Set(optimizedDays),
+    [optimizedDays]
   );
 
   const holidayDates = useMemo(() => ([
@@ -56,6 +61,11 @@ const useCalendarState = ({
     [vacationDaysNumber, daysAssigned]
   );
 
+  const daysGenerated = useMemo(
+    () => optimizedDays.length,
+    [optimizedDays]
+  );
+
   const handleDayClick = useCallback((dateStr, hasHoliday, event) => {
     if (hasHoliday && activeTooltip !== dateStr && window.innerWidth < 768) {
       event.stopPropagation();
@@ -69,7 +79,7 @@ const useCalendarState = ({
     }
 
     const current = config.manualOverrides[dateStr];
-    const isProposed = optimizedDays.includes(dateStr);
+    const isProposed = optimizedDaysSet.has(dateStr);
     const newOverrides = { ...config.manualOverrides };
 
     const totalUsed = confirmedDays + proposedDays;
@@ -104,10 +114,9 @@ const useCalendarState = ({
     activeTooltip,
     config.manualOverrides,
     confirmedDays,
-    optimizedDays,
+    optimizedDaysSet,
     proposedDays,
     setConfig,
-    setShowLimitBanner,
     setLastAction,
     vacationDaysNumber
   ]);
@@ -191,7 +200,7 @@ const useCalendarState = ({
     confirmedDays,
     proposedDays,
     vacationDaysNumber,
-    daysGenerated: vacationDaysNumber,
+    daysGenerated,
     daysAssigned,
     daysAvailable
   };

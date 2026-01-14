@@ -4,20 +4,39 @@ import { REGIONAL_HOLIDAYS, POSTAL_TO_REGION } from '../constants/holidays';
 const useHolidays = (config) => {
   const [nationalHolidays, setNationalHolidays] = useState([]);
   const [regionalHolidays, setRegionalHolidays] = useState([]);
+  const [isLoadingNational, setIsLoadingNational] = useState(false);
+  const [errorNational, setErrorNational] = useState(null);
 
   useEffect(() => {
     if (!config.country || !config.year) {
       setNationalHolidays([]);
+      setErrorNational(null);
       return;
     }
 
+    setIsLoadingNational(true);
+    setErrorNational(null);
+
     fetch(`https://date.nager.at/api/v3/PublicHolidays/${config.year}/${config.country}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
         const nationalOnly = (data || []).filter((holiday) => holiday.global === true);
         setNationalHolidays(nationalOnly);
+        setErrorNational(null);
       })
-      .catch(() => setNationalHolidays([]));
+      .catch((error) => {
+        console.error('Error fetching national holidays:', error);
+        setNationalHolidays([]);
+        setErrorNational(error.message);
+      })
+      .finally(() => {
+        setIsLoadingNational(false);
+      });
   }, [config.country, config.year]);
 
   useEffect(() => {
@@ -68,7 +87,9 @@ const useHolidays = (config) => {
     nationalHolidays,
     regionalHolidays,
     holidaysMap,
-    getHolidayInfo
+    getHolidayInfo,
+    isLoadingNational,
+    errorNational
   };
 };
 

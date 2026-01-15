@@ -21,6 +21,7 @@ const VacationOptimizer = () => {
   const [heroIsDeleting, setHeroIsDeleting] = useState(false);
   const [openSelect, setOpenSelect] = useState(null);
   const [openSelectPlacement, setOpenSelectPlacement] = useState('down');
+  const [scrollAlignment] = useState('center');
   const [config, setConfig] = useState({
     country: 'ES',
     postalCode: '',
@@ -156,25 +157,36 @@ const VacationOptimizer = () => {
   }, [config.workDays, setOptimizedDays]);
 
   useEffect(() => {
-    if (!showForm || !formRef.current) return;
+    if (!showForm || !formRef.current || !shouldScrollToForm) return;
 
     const isMobile = window.matchMedia('(max-width: 767px)').matches;
-    const shouldScroll = shouldScrollToForm || (!isMobile && heroOpacity < 1);
-    if (!shouldScroll) return;
-
-    const headerHeight = headerRef.current?.offsetHeight ?? 0;
-    const targetTop = formRef.current.getBoundingClientRect().top + window.pageYOffset - headerHeight;
-    window.scrollTo({ top: targetTop, behavior: 'smooth' });
+    if (isMobile) {
+      const headerHeight = headerRef.current?.offsetHeight ?? 0;
+      const targetTop = formRef.current.getBoundingClientRect().top + window.pageYOffset - headerHeight;
+      window.scrollTo({ top: targetTop, behavior: 'smooth' });
+    } else {
+      requestAnimationFrame(() => {
+        const rect = formRef.current.getBoundingClientRect();
+        const targetTop = rect.top + window.pageYOffset - (window.innerHeight - rect.height) / 2;
+        window.scrollTo({ top: targetTop, behavior: 'smooth' });
+      });
+    }
     setShouldScrollToForm(false);
-  }, [showForm, shouldScrollToForm, heroOpacity]);
+  }, [showForm, shouldScrollToForm, scrollAlignment]);
 
   useEffect(() => {
     const handleScroll = () => {
       const triggerPoint = window.innerHeight * 0.5;
       const shouldShow = window.scrollY >= triggerPoint;
       const fadeProgress = Math.min(1, window.scrollY / triggerPoint);
+      const isMobile = window.matchMedia('(max-width: 767px)').matches;
 
-      setShowForm((prev) => (prev === shouldShow ? prev : shouldShow));
+      setShowForm((prev) => {
+        if (!isMobile && !prev && shouldShow) {
+          setShouldScrollToForm(true);
+        }
+        return prev === shouldShow ? prev : shouldShow;
+      });
       setHeroOpacity(1 - fadeProgress);
     };
 
@@ -492,93 +504,100 @@ const VacationOptimizer = () => {
       {/* Help Modal */}
       {showHelpModal && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
           onClick={() => setShowHelpModal(false)}
         >
           <div
             ref={modalRef}
-            className="bg-white rounded-[4px] max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="w-full h-full"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
           >
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-              <h2 id="modal-title" className="text-2xl font-semibold text-black">¿Cómo funciona devacas_?</h2>
-              <button
-                onClick={() => setShowHelpModal(false)}
-                className="rounded-full p-2 text-gray-500 hover:text-gray-700"
-                aria-label="Cerrar modal"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="px-6 py-6 space-y-8">
-              {/* Sección 1: Eficiencia */}
-              <section>
-                <p className="text-gray-700 mb-3">
-                  <strong>devacas_</strong> analiza todo el calendario del año para encontrar las mejores oportunidades de maximizar tus días libres,
-                  priorizando periodos extendidos de vacaciones* según su ratio de eficiencia:
-                </p>
-                <div className="bg-orange-50 p-4 mb-3" style={{ borderLeft: `4px solid ${THEME_COLORS.primary}` }}>
-                  <p className="font-mono text-sm text-gray-800">
-                    <strong>Eficiencia</strong> = Días libres totales / Días de vacaciones gastados
-                  </p>
+            <div className="h-full w-full overflow-y-auto bg-black/70 backdrop-blur-md rounded-3xl">
+              <div className="max-w-4xl mx-auto">
+                {/* Modal Header */}
+                <div className="px-6 md:px-0 py-4 bg-transparent flex justify-between items-center">
+                  <h2 id="modal-title" className="text-2xl font-medium text-white">
+                    <span className="md:hidden">¿Cómo funciona?</span>
+                    <span className="hidden md:inline">¿Cómo funciona DEVACAS_?</span>
+                  </h2>
+                  <button
+                    onClick={() => setShowHelpModal(false)}
+                    className="rounded-full p-2 text-white/70 hover:text-white"
+                    aria-label="Cerrar modal"
+                  >
+                    <X size={24} />
+                  </button>
                 </div>
-                <p className="text-gray-700 mb-3 text-sm">
-                  *El algoritmo entiende por periodos extendidos de vacaciones aquellos de 3 o más días, buscando siempre el mejor ratio posible.
-                </p>
-              </section>
 
-              {/* Sección 2: Funcionamiento */}
-              <section>
-                <h3 className="text-xl font-semibold mb-3 text-black">Máximo descanso personalizado</h3>
-                  <p className="text-gray-700 mb-3">
-                  Mientras otras herramientas se limitan a decirte cuándo caen los puentes, <strong>devacas_</strong> se adapta a tu realidad.
-                </p>
-                <p className="text-gray-700 mb-3">
-                  Elige entre vacaciones en días naturales o laborables, define tus días de trabajo, añade festivos por convenio e indica si tienes alguna limitación a la hora de cogerte vacaciones.
-                </p>
-                <p className="text-gray-700 mb-2">
-                  A partir de ahí, el algoritmo busca los huecos más rentables y te propone un calendario optimizado para ti, no para "la media".
-                </p>
-                <p className="text-gray-700 mb-2">
-                  ¿Que un día no te convence? Lo quitas.
-                </p>
-                <p className="text-gray-700 mb-2">
-                  ¿Que prefieres este otro? Lo reservas.
-                </p>
-                <p className="text-gray-700 mb-2">
-                  ¿Que este fin de semana se casa tu prima y tienes que estar aquí? Lo bloqueas.
-                </p>
-              </section>
+                {/* Modal Content */}
+                <div className="px-6 md:px-0 py-6 space-y-8 text-white/80">
+                  {/* Sección 1: Eficiencia */}
+                  <section>
+                    <p className="mb-3">
+                      DEVACAS_ analiza todo el calendario del año para encontrar las mejores oportunidades de maximizar tus días libres,
+                      priorizando periodos extendidos de vacaciones* según su ratio de eficiencia:
+                    </p>
+                    <div className="bg-white/10 p-4 mb-3 border-l-4 border-white">
+                      <p className="font-mono text-sm text-white">
+                        <strong>Eficiencia</strong> = Días libres totales / Días de vacaciones gastados
+                      </p>
+                    </div>
+                    <p className="mb-3 text-sm">
+                      * El algoritmo entiende por periodos extendidos de vacaciones aquellos de 3 o más días, buscando siempre el mejor ratio posible.
+                    </p>
+                  </section>
 
-              {/* Sección 3: Fuentes */}
-              <section>
-                <h3 className="text-xl font-semibold mb-3 text-black">Fuentes de datos</h3>
-                <p className="text-gray-700 mb-2">
-                  Los festivos están incluidos directamente en el código de la aplicación.
-                </p>
-                <ul className="list-disc list-inside text-gray-700 space-y-1">
-                  <li><strong>Festivos nacionales:</strong> <a href="https://date.nager.at/" className="text-blue-600 hover:underline">Nager.Date API</a></li>
-                  <li><strong>Festivos autonómicos:</strong> <a href="https://www.rtve.es/noticias/20251006/calendario-laboral-2026-festivos-puentes-nacionales-autonomicos/16744047.shtml" className="text-blue-600 hover:underline">Este artículo recopilatorio de RTVE</a></li>
-                </ul>
-                <p className="text-gray-700 text-sm mt-3">
-                  *Los datos se basan en el calendario oficial español. Puedes añadir festivos adicionales
-                  en la sección "Festivos de convenio / locales" si tu empresa o localidad tiene días especiales.
-                </p>
-              </section>
+                  {/* Sección 2: Funcionamiento */}
+                  <section>
+                    <h3 className="text-xl font-medium mb-3 text-white">Calendario de vacaciones a tu medida</h3>
+                      <p className="mb-3">
+                      Mientras otras herramientas se limitan a decirte cuándo caen los puentes, DEVACAS_ se adapta a tu realidad.
+                    </p>
+                    <p className="mb-3">
+                      Te permite escoger entre vacaciones en días naturales o laborables, definir tus días de trabajo, añadir festivos por convenio e indicar posibles condicionantes a la hora de cogerte vacaciones.
+                    </p>
+                    <p className="mb-2">
+                      A partir de ahí, el algoritmo busca los huecos más rentables y te propone un calendario optimizado para ti, no para "la media".
+                    </p>
+                    <p className="mb-2">
+                      ¿Uno de los días sugeridos no te convence? Lo rechazas.
+                    </p>
+                    <p className="mb-2">
+                      ¿Prefieres este otro? Lo reservas.
+                    </p>
+                    <p className="mb-2">
+                      ¿Tu compañero ya se ha cogido vacaciones esa semana y no podéis coincidir? La bloqueas.
+                    </p>
+                  </section>
 
-              {/* Nota final */}
-              <div className="bg-gray-50 rounded p-4 text-sm text-gray-600">
-                <p>
-                  💡 <strong>Recuerda:</strong> Esta es una herramienta de planificación.
-                  Los días propuestos son sugerencias que puedes confirmar, modificar o eliminar según tus necesidades.
-                  Verifica siempre las políticas de vacaciones de tu empresa.
-                </p>
+                  {/* Sección 3: Fuentes */}
+                  <section>
+                    <h3 className="text-xl font-medium mb-3 text-white">Fuentes de datos</h3>
+                    <p className="mb-2">
+                      Los festivos están incluidos directamente en el código de la aplicación.
+                    </p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li><strong>Festivos nacionales:</strong> <a href="https://date.nager.at/" className="text-white hover:underline">Nager.Date API</a></li>
+                      <li><strong>Festivos autonómicos:</strong> <a href="https://www.rtve.es/noticias/20251006/calendario-laboral-2026-festivos-puentes-nacionales-autonomicos/16744047.shtml" className="text-white hover:underline">Este artículo recopilatorio de RTVE</a></li>
+                    </ul>
+                    <p className="text-sm mt-3">
+                      *Los datos se basan en el calendario oficial español. Puedes añadir festivos adicionales
+                      en la sección "Festivos de convenio / locales" si tu empresa o localidad tiene días especiales.
+                    </p>
+                  </section>
+
+                  {/* Nota final */}
+                  <div className="bg-white/10 rounded p-4 text-sm text-white/80">
+                    <p>
+                      💡 <strong>Recuerda:</strong> Esta es una herramienta de planificación.
+                      Los días propuestos son sugerencias que puedes confirmar, modificar o eliminar según tus necesidades.
+                      Verifica siempre las políticas de vacaciones de tu empresa.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -605,7 +624,7 @@ const VacationOptimizer = () => {
       {/* Formulario con blur overlay - oculto al inicio */}
       <div
         ref={formRef}
-        className={`relative z-20 mt-12 md:mt-16 transition-opacity duration-700 ease-in-out ${showForm ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`relative z-20 transition-opacity duration-700 ease-in-out ${showForm ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
       >
         <div className="backdrop-blur-md bg-white/20 rounded-3xl shadow-2xl w-full max-w-4xl mx-auto px-12 md:px-16 py-12 md:py-16">
           <div className="space-y-12">
@@ -963,9 +982,8 @@ const VacationOptimizer = () => {
             <div className="flex justify-center">
               <button
                 onClick={optimizeVacations}
-                className="px-8 py-4 bg-black text-white uppercase text-sm font-medium tracking-wide rounded-full flex items-center gap-3 hover:bg-gray-900 transition-colors"
+                className=" w-full px-8 py-4 bg-black text-white uppercase text-sm font-medium tracking-wide rounded-full hover:bg-gray-900 transition-colors"
               >
-                <CalendarIcon size={20} />
                 Optimizar mis vacaciones
               </button>
             </div>

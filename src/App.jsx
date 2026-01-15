@@ -19,6 +19,8 @@ const VacationOptimizer = () => {
   const [heroPhraseIndex, setHeroPhraseIndex] = useState(0);
   const [heroTyped, setHeroTyped] = useState('');
   const [heroIsDeleting, setHeroIsDeleting] = useState(false);
+  const [openSelect, setOpenSelect] = useState(null);
+  const [openSelectPlacement, setOpenSelectPlacement] = useState('down');
   const [config, setConfig] = useState({
     country: 'ES',
     postalCode: '',
@@ -44,6 +46,10 @@ const VacationOptimizer = () => {
   const outputRef = useRef(null);
   const formRef = useRef(null);
   const heroTitleRef = useRef(null);
+  const headerRef = useRef(null);
+  const countrySelectRef = useRef(null);
+  const yearSelectRef = useRef(null);
+  const vacationTypeSelectRef = useRef(null);
   const section3Ref = useRef(null);
   const holidayDateInputRef = useRef(null);
   const modalRef = useRef(null);
@@ -60,6 +66,22 @@ const VacationOptimizer = () => {
     ],
     []
   );
+  const countryOptions = useMemo(() => [{ value: 'ES', label: 'España' }], []);
+  const yearOptions = useMemo(() => [{ value: 2026, label: '2026' }], []);
+  const vacationTypeOptions = useMemo(
+    () => [
+      { value: 'laborables', label: 'laborables' },
+      { value: 'naturales', label: 'naturales' }
+    ],
+    []
+  );
+  const getSelectPlacement = (optionsCount, rect) => {
+    const itemHeight = 40;
+    const menuHeight = optionsCount * itemHeight + 8;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    return spaceBelow < menuHeight && spaceAbove > spaceBelow ? 'up' : 'down';
+  };
 
   const { normalizeDate, getDateStr } = useDateFormatter();
   const { nationalHolidays, regionalHolidays, getHolidayInfo } = useHolidays(config);
@@ -136,10 +158,13 @@ const VacationOptimizer = () => {
   useEffect(() => {
     if (!showForm || !formRef.current) return;
 
-    const shouldScroll = shouldScrollToForm || heroOpacity < 1;
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    const shouldScroll = shouldScrollToForm || (!isMobile && heroOpacity < 1);
     if (!shouldScroll) return;
 
-    formRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const headerHeight = headerRef.current?.offsetHeight ?? 0;
+    const targetTop = formRef.current.getBoundingClientRect().top + window.pageYOffset - headerHeight;
+    window.scrollTo({ top: targetTop, behavior: 'smooth' });
     setShouldScrollToForm(false);
   }, [showForm, shouldScrollToForm, heroOpacity]);
 
@@ -158,6 +183,37 @@ const VacationOptimizer = () => {
 
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!openSelect) return;
+
+    const refs = {
+      country: countrySelectRef,
+      year: yearSelectRef,
+      vacationType: vacationTypeSelectRef
+    };
+    const activeRef = refs[openSelect];
+
+    const handleClickOutside = (event) => {
+      if (activeRef?.current && !activeRef.current.contains(event.target)) {
+        setOpenSelect(null);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpenSelect(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openSelect]);
 
   useEffect(() => {
     const currentPhrase = heroSuffixes[heroPhraseIndex];
@@ -409,7 +465,7 @@ const VacationOptimizer = () => {
       </div>
 
       {/* Header fijo */}
-      <header className="fixed top-0 left-0 right-0 z-50 py-6 md:py-8">
+      <header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 py-6 md:py-8">
         <div className="w-full mx-auto px-6 md:px-16 pb-6 md:pb-16 flex justify-between items-center">
           {/* Logo */}
           <h1 className="text-2xl md:text-3xl font-medium text-white uppercase tracking-tight">devacas_</h1>
@@ -420,7 +476,8 @@ const VacationOptimizer = () => {
               onClick={() => setShowHelpModal(true)}
               className="text-white uppercase text-sm font-medium tracking-wide hover:opacity-70 transition-opacity"
             >
-              ¿Cómo funciona?
+              <span className="hidden md:inline">¿Cómo funciona?</span>
+              <Info className="md:hidden" size={18} aria-hidden="true" />
             </button>
             <button
               onClick={handlePrimaryAction}
@@ -559,16 +616,46 @@ const VacationOptimizer = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h3 className="block mb-2 font-medium text-black">País</h3>
-                <div className="relative">
-                  <select
-                    value={config.country}
-                    onChange={(e) => setConfig(prev => ({ ...prev, country: e.target.value }))}
-                    className="w-full py-2 px-4 bg-black/30 text-white placeholder:text-white rounded-full appearance-none"
-                    aria-labelledby="country-heading"
+                <div ref={countrySelectRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (openSelect === 'country') {
+                        setOpenSelect(null);
+                        return;
+                      }
+                      const rect = countrySelectRef.current?.getBoundingClientRect();
+                      if (rect) {
+                        setOpenSelectPlacement(getSelectPlacement(countryOptions.length, rect));
+                      }
+                      setOpenSelect('country');
+                    }}
+                    className="w-full py-2 px-4 bg-black/30 text-white rounded-full flex items-center justify-between"
+                    aria-haspopup="listbox"
+                    aria-expanded={openSelect === 'country'}
                   >
-                    <option value="ES">España</option>
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white" size={18} />
+                    <span>{countryOptions.find((opt) => opt.value === config.country)?.label}</span>
+                    <ChevronDown className="text-white" size={18} />
+                  </button>
+                  {openSelect === 'country' && (
+                    <div className={`absolute ${openSelectPlacement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} w-full bg-black/80 text-white rounded-2xl shadow-lg z-20 p-1`}>
+                      {countryOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setConfig((prev) => ({ ...prev, country: opt.value }));
+                            setOpenSelect(null);
+                          }}
+                          className="w-full text-left px-4 py-2 rounded-xl hover:bg-white/10"
+                          role="option"
+                          aria-selected={config.country === opt.value}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -607,23 +694,54 @@ const VacationOptimizer = () => {
 
               <div>
                 <h3 className="block mb-2 font-medium text-black">Año</h3>
-                <div className="relative">
-                  <select
-                    value={config.year}
-                    onChange={(e) => setConfig(prev => ({ ...prev, year: parseInt(e.target.value) }))}
-                    className="w-full py-2 px-4 bg-black/30 text-white rounded-full appearance-none"
-                    aria-labelledby="year-heading"
+                <div ref={yearSelectRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (openSelect === 'year') {
+                        setOpenSelect(null);
+                        return;
+                      }
+                      const rect = yearSelectRef.current?.getBoundingClientRect();
+                      if (rect) {
+                        setOpenSelectPlacement(getSelectPlacement(yearOptions.length, rect));
+                      }
+                      setOpenSelect('year');
+                    }}
+                    className="w-full py-2 px-4 bg-black/30 text-white rounded-full flex items-center justify-between"
+                    aria-haspopup="listbox"
+                    aria-expanded={openSelect === 'year'}
                   >
-                    <option value="2026">2026</option>
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white" size={18} />
+                    <span>{yearOptions.find((opt) => opt.value === config.year)?.label}</span>
+                    <ChevronDown className="text-white" size={18} />
+                  </button>
+                  {openSelect === 'year' && (
+                    <div className={`absolute ${openSelectPlacement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} w-full bg-black/80 text-white rounded-2xl shadow-lg z-20 p-1`}>
+                      {yearOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setConfig((prev) => ({ ...prev, year: opt.value }));
+                            setOpenSelect(null);
+                          }}
+                          className="w-full text-left px-4 py-2 rounded-xl hover:bg-white/10"
+                          role="option"
+                          aria-selected={config.year === opt.value}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div>
                 <h3 className="block mb-2 font-medium text-black">Días de vacaciones</h3>
-                <div className="flex gap-4">
-                  <input
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <input
                     type="number"
                     value={config.vacationDays}
                     onChange={(e) => {
@@ -631,19 +749,50 @@ const VacationOptimizer = () => {
                       const numValue = value === '' ? '' : parseInt(value, 10);
                       setConfig(prev => ({ ...prev, vacationDays: isNaN(numValue) ? '' : numValue }));
                     }}
-                    className="flex-1 py-2 px-4 bg-black/30 text-white rounded-full appearance-none"
+                    className="w-full py-2 px-4 bg-black/30 text-white rounded-full appearance-none"
                     min="0"
-                  />
-                  <div className="relative flex-1">
-                    <select
-                      value={config.vacationType}
-                      onChange={(e) => setConfig(prev => ({ ...prev, vacationType: e.target.value }))}
-                      className="w-full py-2 px-4 bg-black/30 text-white rounded-full appearance-none"
+                    />
+                  </div>
+                  <div ref={vacationTypeSelectRef} className="relative flex-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (openSelect === 'vacationType') {
+                          setOpenSelect(null);
+                          return;
+                        }
+                        const rect = vacationTypeSelectRef.current?.getBoundingClientRect();
+                        if (rect) {
+                          setOpenSelectPlacement(getSelectPlacement(vacationTypeOptions.length, rect));
+                        }
+                        setOpenSelect('vacationType');
+                      }}
+                      className="w-full py-2 px-4 bg-black/30 text-white rounded-full flex items-center justify-between whitespace-nowrap"
+                      aria-haspopup="listbox"
+                      aria-expanded={openSelect === 'vacationType'}
                     >
-                      <option value="laborables">laborables</option>
-                      <option value="naturales">naturales</option>
-                    </select>
-                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white" size={18} />
+                      <span>{vacationTypeOptions.find((opt) => opt.value === config.vacationType)?.label}</span>
+                      <ChevronDown className="text-white" size={18} />
+                    </button>
+                    {openSelect === 'vacationType' && (
+                      <div className={`absolute ${openSelectPlacement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} w-full bg-black/80 text-white rounded-2xl shadow-lg z-20 p-1`}>
+                        {vacationTypeOptions.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setConfig((prev) => ({ ...prev, vacationType: opt.value }));
+                              setOpenSelect(null);
+                            }}
+                            className="w-full text-left px-4 py-2 rounded-xl hover:bg-white/10"
+                            role="option"
+                            aria-selected={config.vacationType === opt.value}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 {config.country === 'ES' && (config.vacationDays === '' || config.vacationDays < 22) && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronDown, Plus, X, Info } from 'lucide-react';
+import { ChevronDown, Plus, X, Info, RefreshCw } from 'lucide-react';
 import Calendar from './components/Calendar';
 import useDateFormatter from './hooks/useDateFormatter';
 import useHolidays from './hooks/useHolidays';
@@ -51,6 +51,7 @@ const VacationOptimizer = () => {
   const section3Ref = useRef(null);
   const holidayDateInputRef = useRef(null);
   const modalRef = useRef(null);
+  const modalScrollRef = useRef(null);
   const prevWorkDaysRef = useRef(config.workDays);
   const heroSuffixes = useMemo(
     () => [
@@ -278,6 +279,16 @@ const VacationOptimizer = () => {
     }
     optimizeVacations();
   };
+  const handleEditPreferences = useCallback(() => {
+    setShowCalendar(false);
+    setShowForm(true);
+    setShouldScrollToForm(true);
+  }, []);
+  const handleHelpModalBackdropClick = useCallback((event) => {
+    if (event.target === event.currentTarget) {
+      setShowHelpModal(false);
+    }
+  }, []);
   const { optimizeVacations } = useVacationOptimizer({
     config,
     normalizeDate,
@@ -346,6 +357,27 @@ const VacationOptimizer = () => {
     return () => {
       window.removeEventListener('keydown', handleEscape);
       window.removeEventListener('keydown', handleTab);
+    };
+  }, [showHelpModal]);
+
+  useEffect(() => {
+    if (!showHelpModal) return;
+    const scrollEl = modalScrollRef.current;
+    if (!scrollEl) return;
+
+    let timeoutId;
+    const handleScroll = () => {
+      scrollEl.classList.add('is-scrolling');
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        scrollEl.classList.remove('is-scrolling');
+      }, 600);
+    };
+
+    scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      scrollEl.removeEventListener('scroll', handleScroll);
+      window.clearTimeout(timeoutId);
     };
   }, [showHelpModal]);
 
@@ -451,12 +483,15 @@ const VacationOptimizer = () => {
           muted
           playsInline
         />
-        <div className="absolute inset-0 bg-black/20"></div>
+        <div className={`absolute inset-0 ${showCalendar ? 'backdrop-blur-md bg-white/20' : 'bg-black/20'}`}></div>
       </div>
 
       {/* Header fijo */}
-      <header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 py-6 md:py-8">
-        <div className="w-full mx-auto px-6 md:px-16 pb-6 md:pb-16 flex justify-between items-center">
+      <header
+        ref={headerRef}
+        className={`${showCalendar ? 'hidden' : 'fixed'} top-0 left-0 right-0 z-50 py-6 md:py-8 bg-transparent`}
+      >
+        <div className="w-full mx-auto px-6 md:px-16 flex justify-between items-center">
           {/* Logo */}
           <h1 className="text-2xl md:text-3xl font-medium text-white uppercase tracking-tight">devacas_</h1>
           
@@ -483,27 +518,29 @@ const VacationOptimizer = () => {
       {showHelpModal && (
         <div
           className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowHelpModal(false)}
+          onClick={handleHelpModalBackdropClick}
         >
           <div
             ref={modalRef}
-            className="w-full h-full"
+            className="w-full max-w-4xl mx-auto backdrop-blur-md bg-white/70 rounded-3xl shadow-2xl px-12 md:px-16 py-12 md:py-16 max-h-[85vh] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
           >
-            <div className="h-full w-full overflow-y-auto bg-black/70 backdrop-blur-md rounded-3xl">
-              <div className="max-w-4xl mx-auto">
+            <div
+              ref={modalScrollRef}
+              className="modal-scroll max-h-[calc(85vh-6rem)] md:max-h-[calc(85vh-8rem)] overflow-y-auto pr-2"
+            >
                 {/* Modal Header */}
-                <div className="px-6 md:px-0 py-4 bg-transparent flex justify-between items-center">
-                  <h2 id="modal-title" className="text-2xl font-medium text-white">
+                <div className="pb-6 bg-transparent flex justify-between items-center">
+                  <h2 id="modal-title" className="text-2xl md:text-3xl font-medium text-black">
                     <span className="md:hidden">¿Cómo funciona?</span>
                     <span className="hidden md:inline">¿Cómo funciona DEVACAS_?</span>
                   </h2>
                   <button
                     onClick={() => setShowHelpModal(false)}
-                    className="rounded-full p-2 text-white/70 hover:text-white"
+                    className="rounded-full p-2 text-black/70 hover:text-black"
                     aria-label="Cerrar modal"
                   >
                     <X size={24} />
@@ -511,15 +548,15 @@ const VacationOptimizer = () => {
                 </div>
 
                 {/* Modal Content */}
-                <div className="px-6 md:px-0 py-6 space-y-8 text-white/80">
+                <div className="space-y-8 text-black/80">
                   {/* Sección 1: Eficiencia */}
                   <section>
                     <p className="mb-3">
                       DEVACAS_ analiza todo el calendario del año para encontrar las mejores oportunidades de maximizar tus días libres,
                       priorizando periodos extendidos de vacaciones* según su ratio de eficiencia:
                     </p>
-                    <div className="bg-white/10 p-4 mb-3 border-l-4 border-white">
-                      <p className="font-mono text-sm text-white">
+                    <div className="bg-black/10 p-4 mb-3 border-l-4 border-black">
+                      <p className="font-mono text-sm text-black">
                         <strong>Eficiencia</strong> = Días libres totales / Días de vacaciones gastados
                       </p>
                     </div>
@@ -530,7 +567,7 @@ const VacationOptimizer = () => {
 
                   {/* Sección 2: Funcionamiento */}
                   <section>
-                    <h3 className="text-xl font-medium mb-3 text-white">Calendario de vacaciones a tu medida</h3>
+                    <h3 className="text-xl font-medium mb-3 text-black">Calendario de vacaciones a tu medida</h3>
                       <p className="mb-3">
                       Mientras otras herramientas se limitan a decirte cuándo caen los puentes, DEVACAS_ se adapta a tu realidad.
                     </p>
@@ -553,13 +590,13 @@ const VacationOptimizer = () => {
 
                   {/* Sección 3: Fuentes */}
                   <section>
-                    <h3 className="text-xl font-medium mb-3 text-white">Fuentes de datos</h3>
+                    <h3 className="text-xl font-medium mb-3 text-black">Fuentes de datos</h3>
                     <p className="mb-2">
                       Los festivos están incluidos directamente en el código de la aplicación.
                     </p>
                     <ul className="list-disc list-inside space-y-1">
-                      <li><strong>Festivos nacionales:</strong> <a href="https://date.nager.at/" className="text-white hover:underline">Nager.Date API</a></li>
-                      <li><strong>Festivos autonómicos:</strong> <a href="https://www.rtve.es/noticias/20251006/calendario-laboral-2026-festivos-puentes-nacionales-autonomicos/16744047.shtml" className="text-white hover:underline">Este artículo recopilatorio de RTVE</a></li>
+                      <li><strong>Festivos nacionales:</strong> <a href="https://date.nager.at/" className="text-black hover:underline">Nager.Date API</a></li>
+                      <li><strong>Festivos autonómicos:</strong> <a href="https://www.rtve.es/noticias/20251006/calendario-laboral-2026-festivos-puentes-nacionales-autonomicos/16744047.shtml" className="text-black hover:underline">Este artículo recopilatorio de RTVE</a></li>
                     </ul>
                     <p className="text-sm mt-3">
                       *Los datos se basan en el calendario oficial español. Puedes añadir festivos adicionales
@@ -568,7 +605,7 @@ const VacationOptimizer = () => {
                   </section>
 
                   {/* Nota final */}
-                  <div className="bg-white/10 rounded p-4 text-sm text-white/80">
+                  <div className="bg-black/10 rounded p-4 text-sm text-black/80">
                     <p>
                       💡 <strong>Recuerda:</strong> Esta es una herramienta de planificación.
                       Los días propuestos son sugerencias que puedes confirmar, modificar o eliminar según tus necesidades.
@@ -576,36 +613,37 @@ const VacationOptimizer = () => {
                     </p>
                   </div>
                 </div>
-              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Hero Section - H1 grande */}
-      <div className="h-screen" aria-hidden="true" />
-      <div
-        className="fixed inset-0 z-10 flex items-end transition-opacity duration-700 ease-in-out pointer-events-none"
-        style={{ opacity: heroOpacity }}
-      >
-        <div className="w-full mx-auto px-6 md:px-16 pb-6 md:pb-16">
-          <h1
-            ref={heroTitleRef}
-            className="text-5xl md:text-7xl lg:text-8xl font-bold text-white uppercase tracking-tight leading-tight w-full min-h-[6.4em] md:min-h-[2em]"
+      {!showCalendar && (
+        <>
+          {/* Hero Section - H1 grande */}
+          <div className="h-screen" aria-hidden="true" />
+          <div
+            className="fixed inset-0 z-10 flex items-end transition-opacity duration-700 ease-in-out pointer-events-none"
+            style={{ opacity: heroOpacity }}
           >
-            <span className="block">Convierte días sueltos en</span>
-            <span className="block min-h-[2.4em] md:min-h-[1em]">{heroTyped || '\u00A0'}</span>
-          </h1>
-        </div>
-      </div>
+            <div className="w-full mx-auto px-6 md:px-16 pb-6 md:pb-16">
+              <h1
+                ref={heroTitleRef}
+                className="text-5xl md:text-7xl lg:text-8xl font-bold text-white uppercase tracking-tight leading-tight w-full min-h-[6.4em] md:min-h-[2em]"
+              >
+                <span className="block">Convierte días sueltos en</span>
+                <span className="block min-h-[2.4em] md:min-h-[1em]">{heroTyped || '\u00A0'}</span>
+              </h1>
+            </div>
+          </div>
 
-      {/* Formulario con blur overlay - oculto al inicio */}
-      <div
-        ref={formRef}
-        className={`relative z-20 transition-opacity duration-700 ease-in-out ${showForm ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-      >
-        <div className="backdrop-blur-md bg-white/20 rounded-3xl shadow-2xl w-full max-w-4xl mx-auto px-12 md:px-16 py-12 md:py-16">
-          <div className="space-y-12">
+          {/* Formulario con blur overlay - oculto al inicio */}
+          <div
+            ref={formRef}
+            className={`relative z-20 transition-opacity duration-700 ease-in-out ${showForm ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          >
+            <div className="backdrop-blur-md bg-white/20 rounded-3xl shadow-2xl w-full max-w-4xl mx-auto px-12 md:px-16 py-12 md:py-16">
+              <div className="space-y-12">
 
             {/* Sección 1: Configuración básica */}
             <div className="mb-8">
@@ -967,110 +1005,98 @@ const VacationOptimizer = () => {
                 Optimizar mis vacaciones
               </button>
             </div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
-      {/* Calendar Section - aparece después del formulario */}
+      {/* Calendar Section */}
       {showCalendar && (
-        <div className="relative z-30 mt-12 bg-transparent">
-          {/* Output Section - Resume */}
-          <div ref={outputRef} className="sticky top-0 z-10 backdrop-blur bg-black">
-            <div className="max-w-7xl mx-auto px-4 md:px-6 py-4">
-              <div className="grid grid-cols-3 gap-4 md:gap-8">
-                <div className="text-center">
-                  <div className="text-4xl md:text-5xl text-white font-bold mb-2">{vacationDaysNumber}</div>
-                  <div className="text-sm text-white font-light">Generados</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-4xl md:text-5xl text-white font-bold mb-2">{daysAssigned}</div>
-                  <div className="text-sm text-white font-light">Asignados</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-4xl md:text-5xl text-white font-bold mb-2">{daysAvailable}</div>
-                  <div className="text-sm text-white font-light">Disponibles</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div className="max-w-7xl mx-auto px-4 md:px-6 py-6" ref={calendarRef}>
-              {/* Leyenda */}
-              <div className="w-full mt-6 mb-4 bg-gray-50 py-6 rounded-[4px] flex flex-col items-center text-left md:text-center px-4">
-                <div className="space-y-3 text-sm w-full text-black">
-                  <p>
-                    Los días generados por el algoritmo se confirman automáticamente. Haz clic en ellos para rechazarlos si no te convienen.
-                  </p>
-                  <p>
-                    También puedes hacer clic en cualquier otra fecha del calendario para confirmarla o bloquearla según necesites.
-                  </p>
-                </div>
-              </div>
-              <div className="w-full flex justify-center mb-6">
-                <div className="flex flex-wrap justify-center gap-6 text-sm text-black">
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 bg-green-100 border border-gray-200 rounded"></div>
-                    <span>Confirmado</span>
+        <div className="relative bg-transparent h-screen overflow-hidden">
+          <div className="w-full h-full">
+            <div className="flex h-full flex-col md:flex-row gap-8">
+              <aside className="w-full md:w-fit md:h-full flex flex-col justify-between py-6 md:py-8 px-6 md:px-16 backdrop-blur-md bg-white/70 rounded-r-3xl shadow-2xl">
+                <div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="text-black text-2xl md:text-3xl font-medium uppercase tracking-tight">devacas_</div>
+                    <button
+                      onClick={optimizeVacations}
+                      className="p-2 bg-white text-black rounded-full hover:bg-gray-100 transition-colors"
+                      aria-label="Recalcular"
+                    >
+                      <RefreshCw size={16} aria-hidden="true" />
+                    </button>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 bg-red-100 border border-gray-200 rounded"></div>
-                    <span>Bloqueado</span>
+                  <div className="mt-16 text-black max-w-[240px] space-y-12">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="text-left">
+                        <div className="text-4xl font-bold">{daysAssigned}</div>
+                        <div className="uppercase tracking-wide text-xs">Confirmados</div>
+                      </div>
+                      <div className="text-left">
+                        <div className="text-4xl font-bold">{daysAvailable}</div>
+                        <div className="uppercase tracking-wide text-xs">Sin confirmar</div>
+                      </div>
+                    </div>
+                    {showLimitBanner && (
+                      <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 rounded-[4px]">
+                        <p className="font-regular text-sm">Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días confirmados para añadir más.</p>
+                      </div>
+                    )}
+                    <div className="space-y-3 text-sm">
+                      <p>
+                        Haz clic en cualquier día para confirmarlo o rechazarlo, según tus preferencias.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Banner de límite alcanzado */}
-              {showLimitBanner && (
-                <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 mb-6">
-                  <p className="font-medium">Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días confirmados para añadir más.</p>
+                <div className="flex flex-col gap-3 items-stretch pb-6 md:pb-8">
+                  <button
+                    onClick={handleEditPreferences}
+                    className="w-full px-6 py-2.5 bg-white text-black uppercase text-sm font-medium tracking-wide rounded-full hover:bg-gray-100 transition-colors text-center"
+                  >
+                    Editar preferencias
+                  </button>
+                  <button
+                    onClick={downloadCalendar}
+                    className="w-full px-6 py-2.5 bg-black text-white uppercase text-sm font-medium tracking-wide rounded-full hover:bg-gray-900 transition-colors text-center"
+                  >
+                    Descargar calendario
+                  </button>
                 </div>
-              )}
+              </aside>
+              <div className="flex-1 h-full overflow-y-auto pr-6 md:pr-8">
+                <div ref={calendarRef} className="min-h-full">
+                  {/* Región aria-live para anunciar cambios a lectores de pantalla */}
+                  <div aria-live="polite" aria-atomic="true" className="sr-only">
+                    {lastAction.date && `Día ${lastAction.date} ${lastAction.status}`}
+                  </div>
 
-              {/* Región aria-live para anunciar cambios a lectores de pantalla */}
-              <div aria-live="polite" aria-atomic="true" className="sr-only">
-                {lastAction.date && `Día ${lastAction.date} ${lastAction.status}`}
-              </div>
-
-              <Calendar
-                year={config.year}
-                manualOverrides={config.manualOverrides}
-                customHolidays={config.customHolidays}
-                normalizeDate={normalizeDate}
-                getDateStr={getDateStr}
-                isWeekend={isWeekend}
-                isHoliday={isHoliday}
-                getHolidayInfo={getHolidayInfo}
-                optimizedDays={optimizedDays}
-                activeTooltip={activeTooltip}
-                onDayClick={handleDayClick}
-              />
-            </div>
-
-            {/* Botones de acción */}
-            <div className="max-w-7xl mx-auto px-4 md:px-6 py-6">
-              <div className="flex flex-col md:flex-row gap-4 justify-center">
-                {/* Botón Recalcular - secundario */}
-                <button
-                  onClick={optimizeVacations}
-                className="px-6 py-3 bg-white rounded-full transition-colors whitespace-nowrap"
-                  style={{ color: THEME_COLORS.primary, borderWidth: '2px', borderStyle: 'solid', borderColor: THEME_COLORS.primary }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = THEME_COLORS.primaryLight}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                >
-                  Recalcular
-                </button>
-
-                {/* Botón Descargar - principal */}
-                <button
-                  onClick={downloadCalendar}
-                className="px-6 py-3 text-white rounded-full transition-colors whitespace-nowrap"
-                  style={{ backgroundColor: THEME_COLORS.primary }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = THEME_COLORS.primaryHover}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = THEME_COLORS.primary}
-                >
-                  Descargar PDF
-                </button>
+                  <Calendar
+                    year={config.year}
+                    manualOverrides={config.manualOverrides}
+                    customHolidays={config.customHolidays}
+                    normalizeDate={normalizeDate}
+                    getDateStr={getDateStr}
+                    isWeekend={isWeekend}
+                    isHoliday={isHoliday}
+                    getHolidayInfo={getHolidayInfo}
+                    optimizedDays={optimizedDays}
+                    activeTooltip={activeTooltip}
+                    onDayClick={handleDayClick}
+                  />
+                  <footer className="mt-12 w-full pb-8">
+                    <div className="flex flex-col md:flex-row justify-between gap-2">
+                      <p className="text-white text-sm text-left">
+                        Hecho con <span className="text-transparent" style={{ WebkitTextStroke: '1px #ffffff' }}>♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/" className="hover:underline">Clara Iglesias</a>
+                      </p>
+                      <p className="text-white text-sm text-right">
+                        <a href="https://github.com/claraiis/devacas_" className="hover:underline">Ver repositorio en Github</a>
+                      </p>
+                    </div>
+                  </footer>
+                </div>
               </div>
             </div>
           </div>
@@ -1078,7 +1104,7 @@ const VacationOptimizer = () => {
       )}
 
       {/* Footer */}
-      <footer className={`relative z-30 mt-20 py-8 bg-transparent ${showCalendar ? "mt-20" : ""}`}>
+      <footer className={`relative z-30 mt-20 py-8 bg-transparent ${showCalendar ? "hidden" : ""}`}>
         <div className="w-full mx-auto px-6 md:px-16 flex flex-col md:flex-row justify-between items-center gap-2">
           <p className="text-white text-sm">
             Hecho con <span className="text-transparent" style={{ WebkitTextStroke: '1px #ffffff' }}>♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/" className="hover:underline">Clara Iglesias</a>

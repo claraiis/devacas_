@@ -80,6 +80,12 @@ const useCalendarState = ({
       setActiveTooltip(null);
     }
 
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const clickedDate = new Date(year, month - 1, day);
+    if (hasHoliday || isWeekend(clickedDate)) {
+      return;
+    }
+
     const current = config.manualOverrides[dateStr];
     const isProposed = optimizedDaysSet.has(dateStr);
     const newOverrides = { ...config.manualOverrides };
@@ -156,7 +162,8 @@ const useCalendarState = ({
     setConfig,
     setLastAction,
     setShowLimitBanner,
-    vacationDaysNumber
+    vacationDaysNumber,
+    isWeekend
   ]);
 
   const downloadCalendar = useCallback(async () => {
@@ -166,7 +173,7 @@ const useCalendarState = ({
     });
 
     if (vacationDays.length === 0) {
-      alert('No hay días de vacaciones para descargar');
+      alert('No hay días de vacaciones confirmados para descargar');
       return;
     }
 

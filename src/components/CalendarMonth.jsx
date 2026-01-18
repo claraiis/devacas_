@@ -52,12 +52,13 @@ const CalendarMonth = memo(({
     const dateStr = getDateStr(normalized);
     const override = manualOverrides[dateStr];
 
-    let borderColor = 'border-gray-200 dark:border-gray-700';
-    let bgColor = 'bg-white dark:bg-gray-800';
+    let bgColor = 'bg-transparent';
+    let textColor = 'text-black';
     let holidayName = '';
 
     if (isWeekend(normalized) || isHoliday(normalized)) {
-      bgColor = 'bg-gray-100 dark:bg-gray-700';
+      bgColor = 'bg-transparent';
+      textColor = 'text-gray-600';
     }
 
     if (isHoliday(normalized)) {
@@ -68,20 +69,22 @@ const CalendarMonth = memo(({
 
     if (override === 'confirmed') {
       bgColor = 'bg-green-100 dark:bg-green-900/50';
+      textColor = 'text-black dark:text-white';
     } else if (override === 'blocked') {
       bgColor = 'bg-red-100 dark:bg-red-900/50';
+      textColor = 'text-black dark:text-white';
     }
     // Ya no mostramos borde marrón porque los días optimizados se confirman automáticamente
 
     const isProposed = optimizedDaysSet.has(dateStr) && override !== 'confirmed' && override !== 'blocked';
+    const isMarked = bgColor !== 'bg-transparent';
 
     days.push(
       <div
         key={day}
         onClick={(event) => onDayClick(dateStr, Boolean(holidayName), event)}
         title={holidayName}
-        className={`h-8 flex items-center justify-center text-sm cursor-pointer border-2 rounded ${borderColor} ${bgColor} hover:opacity-70 transition-opacity relative group text-black dark:text-white`}
-        style={isProposed ? { borderColor: THEME_COLORS.primary } : undefined}
+        className={`h-7 w-7 flex items-center justify-center text-[13px] cursor-pointer ${isMarked ? 'rounded-full' : 'rounded-none'} ${bgColor} ${textColor} hover:opacity-70 transition-opacity relative group mx-auto`}
       >
         {day}
         {holidayName && (
@@ -99,13 +102,13 @@ const CalendarMonth = memo(({
 
   return (
     <div className="p-4">
-      <h3 className="text-center font-semibold mb-3 text-black dark:text-white">{MONTH_NAMES[month]}</h3>
-      <div className="grid grid-cols-7 gap-1 text-xs text-center mb-2 text-gray-600 dark:text-gray-400">
+      <h3 className="text-left mb-3 text-black font-medium uppercase tracking-tight">{MONTH_NAMES[month]}</h3>
+      <div className="grid grid-cols-7 gap-0 text-xs text-center mb-2 text-black">
         {WEEKDAY_LABELS.map((label) => (
           <div key={label}>{label}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-y-0.5 gap-x-0">
         {days}
       </div>
     </div>

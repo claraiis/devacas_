@@ -15,7 +15,6 @@ const useVacationOptimizer = ({
   setOptimizedDays,
   setConfig,
   setShowCalendar,
-  setExpanded,
   outputRef
 }) => {
   // Memoizar el cálculo de días optimizados - solo recalcula cuando cambian las dependencias críticas
@@ -25,12 +24,144 @@ const useVacationOptimizer = ({
     const endDate = new Date(config.year, 11, 31);
 
     const offDays = new Set();
+    const isWeekendForScoring = config.vacationType === 'naturales'
+      ? (date) => {
+          const day = date.getDay();
+          return day === 0 || day === 6;
+        }
+      : isWeekend;
+    const confirmedSet = new Set();
+    const blockedSet = new Set();
+    Object.entries(config.manualOverrides).forEach(([dateStr, status]) => {
+      if (status === 'confirmed') confirmedSet.add(dateStr);
+      if (status === 'blocked') blockedSet.add(dateStr);
+    });
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
       const normalized = normalizeDate(date);
       const dateStr = getDateStr(normalized);
-      if (isWeekend(normalized) || isHoliday(normalized) || config.manualOverrides[dateStr] === 'confirmed') {
+      if (isWeekendForScoring(normalized) || isHoliday(normalized)) {
         offDays.add(dateStr);
       }
+    }
+
+    if (config.vacationType === 'naturales') {
+      let remainingDays = vacationDays - confirmedSet.size;
+      if (remainingDays <= 0) return [];
+
+      const allDates = [];
+      for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+        allDates.push(normalizeDate(date));
+      }
+
+      const lengths = [];
+      if (config.weeklyBlocks) {
+        lengths.push(7);
+      } else {
+        const maxLength = Math.min(10, remainingDays);
+        for (let length = remainingDays === 1 ? 1 : 2; length <= maxLength; length += 1) {
+          lengths.push(length);
+        }
+        if (remainingDays > 10) {
+          lengths.push(Math.min(14, remainingDays));
+        }
+      }
+
+      const candidates = [];
+      for (let i = 0; i < allDates.length; i += 1) {
+        for (const length of lengths) {
+          const endIndex = i + length - 1;
+          if (endIndex >= allDates.length) continue;
+
+          const start = allDates[i];
+          const startDay = start.getDay();
+          if (config.weeklyBlocks && startDay !== 1) continue;
+
+          let invalid = false;
+          const range = [];
+          for (let j = i; j <= endIndex; j += 1) {
+            const dateStr = getDateStr(allDates[j]);
+            if (blockedSet.has(dateStr) || confirmedSet.has(dateStr)) {
+              invalid = true;
+              break;
+            }
+            range.push(allDates[j]);
+          }
+          if (invalid) continue;
+
+          let daysBefore = 0;
+          let iterator = normalizeDate(start);
+          iterator.setDate(iterator.getDate() - 1);
+          while (daysBefore < 30) {
+            const normalized = normalizeDate(iterator);
+            const dateStr = getDateStr(normalized);
+            if (!offDays.has(dateStr)) break;
+            daysBefore += 1;
+            iterator.setDate(iterator.getDate() - 1);
+          }
+
+          let daysAfter = 0;
+          iterator = normalizeDate(allDates[endIndex]);
+          iterator.setDate(iterator.getDate() + 1);
+          while (daysAfter < 30) {
+            const normalized = normalizeDate(iterator);
+            const dateStr = getDateStr(normalized);
+            if (!offDays.has(dateStr)) break;
+            daysAfter += 1;
+            iterator.setDate(iterator.getDate() + 1);
+          }
+
+          const totalFreeDays = daysBefore + range.length + daysAfter;
+          const efficiency = totalFreeDays / range.length;
+          const isPuente = range.length <= 4 && efficiency >= 2;
+          let priority = isPuente ? efficiency * 10 : efficiency;
+
+          if (config.prioritizeSummerWinter) {
+            const month = start.getMonth();
+            const isPopularMonth = [
+              POPULAR_VACATION_MONTHS.JULY,
+              POPULAR_VACATION_MONTHS.AUGUST,
+              POPULAR_VACATION_MONTHS.DECEMBER
+            ].includes(month);
+
+            if (isPopularMonth) {
+              priority *= 1.5;
+            }
+          }
+
+          candidates.push({ range, start, startDay, efficiency, daysBefore, daysAfter, totalFreeDays, isPuente, priority });
+        }
+      }
+
+      candidates.sort((a, b) => b.priority - a.priority);
+
+      const selected = [];
+      const selectedSet = new Set();
+      const usedMonths = new Map();
+
+      for (const candidate of candidates) {
+        if (remainingDays <= 0) break;
+        if (candidate.range.length > remainingDays) continue;
+
+        const month = candidate.start.getMonth();
+        const monthUsage = usedMonths.get(month) || 0;
+        const maxDaysPerMonth = config.weeklyBlocks ? 10 : 7;
+        if (!candidate.isPuente && monthUsage >= maxDaysPerMonth) {
+          continue;
+        }
+
+        const overlap = candidate.range.some((day) => selectedSet.has(getDateStr(day)));
+        if (overlap) continue;
+
+        candidate.range.forEach((day) => {
+          const dateStr = getDateStr(day);
+          selected.push(dateStr);
+          selectedSet.add(dateStr);
+        });
+        remainingDays -= candidate.range.length;
+        usedMonths.set(month, monthUsage + candidate.range.length);
+      }
+
+      return selected;
     }
 
     const gaps = [];
@@ -106,7 +237,7 @@ const useVacationOptimizer = ({
 
     scoredGaps.sort((a, b) => b.priority - a.priority);
 
-    const confirmedCount = Object.values(config.manualOverrides).filter((value) => value === 'confirmed').length;
+    const confirmedCount = confirmedSet.size;
     let remainingDays = vacationDays - confirmedCount;
     const selected = [];
     const usedMonths = new Map();
@@ -123,15 +254,7 @@ const useVacationOptimizer = ({
       }
 
       if (config.weeklyBlocks) {
-        let blockSize;
-        if (config.vacationType === 'naturales') {
-          blockSize = 7;
-        } else {
-          blockSize = config.workDays === 'L-V' ? 5 : 6;
-        }
-
-        const startsOnMonday = gap.startDay === 1;
-        if (!startsOnMonday && config.vacationType === 'naturales') continue;
+        const blockSize = config.workDays === 'L-V' ? 5 : 6;
 
         const blocks = Math.floor(gap.days.length / blockSize);
 
@@ -195,7 +318,6 @@ const useVacationOptimizer = ({
     });
     
     setShowCalendar(true);
-    setExpanded((prev) => ({ ...prev, section3: false }));
 
     setTimeout(() => {
       outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -204,7 +326,6 @@ const useVacationOptimizer = ({
     memoizedOptimizedDays,
     outputRef,
     setConfig,
-    setExpanded,
     setOptimizedDays,
     setShowCalendar
   ]);

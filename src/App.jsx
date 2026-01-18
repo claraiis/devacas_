@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Plus, X, Calendar as CalendarIcon, Info, Moon, Sun, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, X, Info } from 'lucide-react';
 import Calendar from './components/Calendar';
 import useDateFormatter from './hooks/useDateFormatter';
 import useHolidays from './hooks/useHolidays';
@@ -8,11 +8,8 @@ import useVacationOptimizer from './hooks/useVacationOptimizer';
 import useDebounceLocalStorage from './hooks/useDebounceLocalStorage';
 import { POSTAL_TO_REGION } from './constants/holidays';
 import { THEME_COLORS } from './constants/colors';
-import { useTheme } from './contexts/ThemeContext';
 
 const VacationOptimizer = () => {
-  const { isDark, toggleTheme } = useTheme();
-  const [expanded, setExpanded] = useState({ section1: false, section2: false, section3: false });
   const [showForm, setShowForm] = useState(false);
   const [shouldScrollToForm, setShouldScrollToForm] = useState(false);
   const [heroOpacity, setHeroOpacity] = useState(1);
@@ -21,7 +18,6 @@ const VacationOptimizer = () => {
   const [heroIsDeleting, setHeroIsDeleting] = useState(false);
   const [openSelect, setOpenSelect] = useState(null);
   const [openSelectPlacement, setOpenSelectPlacement] = useState('down');
-  const [scrollAlignment] = useState('center');
   const [config, setConfig] = useState({
     country: 'ES',
     postalCode: '',
@@ -48,6 +44,7 @@ const VacationOptimizer = () => {
   const formRef = useRef(null);
   const heroTitleRef = useRef(null);
   const headerRef = useRef(null);
+  const isMobileRef = useRef(window.matchMedia('(max-width: 767px)'));
   const countrySelectRef = useRef(null);
   const yearSelectRef = useRef(null);
   const vacationTypeSelectRef = useRef(null);
@@ -57,12 +54,11 @@ const VacationOptimizer = () => {
   const prevWorkDaysRef = useRef(config.workDays);
   const heroSuffixes = useMemo(
     () => [
-      'descansos significativos_',
+      'fiestas en el pueblo_',
       'rutas por la montaña_',
       'viajes en familia_',
       'paseos por la playa_',
       'escapadas a la ciudad_',
-      'fiestas en el pueblo_',
       'días devacas_',
     ],
     []
@@ -157,10 +153,30 @@ const VacationOptimizer = () => {
   }, [config.workDays, setOptimizedDays]);
 
   useEffect(() => {
+    const mql = isMobileRef.current;
+    const handleChange = (event) => {
+      isMobileRef.current = event.currentTarget;
+    };
+
+    if (mql.addEventListener) {
+      mql.addEventListener('change', handleChange);
+    } else {
+      mql.addListener(handleChange);
+    }
+
+    return () => {
+      if (mql.removeEventListener) {
+        mql.removeEventListener('change', handleChange);
+      } else {
+        mql.removeListener(handleChange);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!showForm || !formRef.current || !shouldScrollToForm) return;
 
-    const isMobile = window.matchMedia('(max-width: 767px)').matches;
-    if (isMobile) {
+    if (isMobileRef.current.matches) {
       const headerHeight = headerRef.current?.offsetHeight ?? 0;
       const targetTop = formRef.current.getBoundingClientRect().top + window.pageYOffset - headerHeight;
       window.scrollTo({ top: targetTop, behavior: 'smooth' });
@@ -172,17 +188,16 @@ const VacationOptimizer = () => {
       });
     }
     setShouldScrollToForm(false);
-  }, [showForm, shouldScrollToForm, scrollAlignment]);
+  }, [showForm, shouldScrollToForm]);
 
   useEffect(() => {
     const handleScroll = () => {
       const triggerPoint = window.innerHeight * 0.5;
       const shouldShow = window.scrollY >= triggerPoint;
       const fadeProgress = Math.min(1, window.scrollY / triggerPoint);
-      const isMobile = window.matchMedia('(max-width: 767px)').matches;
 
       setShowForm((prev) => {
-        if (!isMobile && !prev && shouldShow) {
+        if (!isMobileRef.current.matches && !prev && shouldShow) {
           setShouldScrollToForm(true);
         }
         return prev === shouldShow ? prev : shouldShow;
@@ -272,7 +287,6 @@ const VacationOptimizer = () => {
     setOptimizedDays,
     setConfig,
     setShowCalendar,
-    setExpanded,
     outputRef
   });
 
@@ -364,42 +378,6 @@ const VacationOptimizer = () => {
   // Reduce escrituras de ~50/segundo a 1 cada 500ms
   useDebounceLocalStorage('vacationConfig', config, 500);
 
-  const toggleSection = useCallback((section) => {
-    setExpanded(prev => {
-      const isCurrentlyExpanded = prev[section];
-
-      // Si la sección ya está expandida, contraerla
-      if (isCurrentlyExpanded) {
-        return { ...prev, [section]: false };
-      }
-
-      // Si no, contraer todas y expandir solo la seleccionada
-      const newState = {
-        section1: false,
-        section2: false,
-        section3: false,
-        [section]: true
-      };
-
-      // Si expandimos la sección 3, hacer scroll después de que se expanda
-      if (section === 'section3') {
-        setTimeout(() => {
-          if (section3Ref.current) {
-            const rect = section3Ref.current.getBoundingClientRect();
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            const targetPosition = scrollTop + rect.bottom - window.innerHeight + 40;
-
-            window.scrollTo({
-              top: targetPosition,
-              behavior: 'smooth'
-            });
-          }
-        }, 100);
-      }
-
-      return newState;
-    });
-  }, []);
 
   const handlePostalCodeChange = useCallback((value) => {
     const cleaned = value.replace(/\D/g, '').slice(0, 5);
@@ -942,7 +920,8 @@ const VacationOptimizer = () => {
               </div>
 
               {/* Columna derecha - Horario laboral */}
-              <div>
+              {config.vacationType !== 'naturales' && (
+                <div>
                 <label className="block mb-3 font-medium text-black">¿Qué días trabajas?</label>
                 <div className="grid grid-cols-2 gap-4">
                   <label htmlFor="workdays-lv" className="flex items-center gap-3 cursor-pointer text-black">
@@ -973,6 +952,7 @@ const VacationOptimizer = () => {
                   </label>
                 </div>
               </div>
+              )}
             </div>
 
               </div>
@@ -993,7 +973,7 @@ const VacationOptimizer = () => {
 
       {/* Calendar Section - aparece después del formulario */}
       {showCalendar && (
-        <div className="relative z-30 mt-12 bg-white">
+        <div className="relative z-30 mt-12 bg-transparent">
           {/* Output Section - Resume */}
           <div ref={outputRef} className="sticky top-0 z-10 backdrop-blur bg-black">
             <div className="max-w-7xl mx-auto px-4 md:px-6 py-4">

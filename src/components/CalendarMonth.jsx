@@ -42,11 +42,8 @@ const CalendarMonth = memo(({
 
   const days = [];
 
-  for (let i = 0; i < (startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1); i++) {
-    days.push(<div key={`empty-${i}`} className="h-8"></div>);
-  }
-
-  for (let day = 1; day <= daysInMonth; day++) {
+  const dayStates = Array.from({ length: daysInMonth }, (_, index) => {
+    const day = index + 1;
     const date = new Date(year, month, day);
     const normalized = normalizeDate(date);
     const dateStr = getDateStr(normalized);
@@ -57,36 +54,86 @@ const CalendarMonth = memo(({
     let holidayName = '';
 
     if (isWeekend(normalized) || isHoliday(normalized)) {
-      bgColor = 'bg-transparent';
+      bgColor = 'bg-gray-200';
       textColor = 'text-gray-600';
     }
 
     if (isHoliday(normalized)) {
-      // Usar función optimizada O(1) en lugar de 3 búsquedas lineales O(n)
       const holidayInfo = getHolidayInfo(dateStr, customHolidays);
       holidayName = holidayInfo?.name || '';
     }
 
     if (override === 'confirmed') {
-      bgColor = 'bg-green-100 dark:bg-green-900/50';
-      textColor = 'text-black dark:text-white';
-    } else if (override === 'blocked') {
-      bgColor = 'bg-red-100 dark:bg-red-900/50';
-      textColor = 'text-black dark:text-white';
+      bgColor = 'bg-gray-200';
+      textColor = 'text-gray-700';
+    } else if (override === 'rejected') {
+      bgColor = 'bg-red-200';
+      textColor = 'text-black';
+    } else if (optimizedDaysSet.has(dateStr)) {
+      bgColor = 'bg-green-200';
+      textColor = 'text-black';
     }
-    // Ya no mostramos borde marrón porque los días optimizados se confirman automáticamente
+    return {
+      day,
+      dateStr,
+      bgColor,
+      textColor,
+      holidayName,
+      isMarked: bgColor !== 'bg-transparent',
+      isSuggested: optimizedDaysSet.has(dateStr)
+    };
+  });
 
-    const isProposed = optimizedDaysSet.has(dateStr) && override !== 'confirmed' && override !== 'blocked';
-    const isMarked = bgColor !== 'bg-transparent';
+  for (let i = 0; i < (startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1); i++) {
+    days.push(<div key={`empty-${i}`} className="h-8 w-full"></div>);
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const state = dayStates[day - 1];
+    const { dateStr, bgColor, textColor, holidayName, isMarked } = state;
+    const gridIndex = (startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1) + (day - 1);
+    const columnIndex = gridIndex % 7;
+    const prevState = dayStates[day - 2];
+    const nextState = dayStates[day];
+    const aboveState = dayStates[day - 8];
+    const belowState = dayStates[day + 6];
+    const hasLeftSame =
+      columnIndex > 0 &&
+      prevState &&
+      prevState.isMarked &&
+      prevState.bgColor === bgColor;
+    const hasRightSame =
+      columnIndex < 6 &&
+      nextState &&
+      nextState.isMarked &&
+      nextState.bgColor === bgColor;
+    const hasUpSame =
+      aboveState &&
+      aboveState.isMarked &&
+      aboveState.bgColor === bgColor;
+    const hasDownSame =
+      belowState &&
+      belowState.isMarked &&
+      belowState.bgColor === bgColor;
+    const roundedClass = isMarked
+      ? [
+          !hasLeftSame && !hasUpSame ? 'rounded-tl-[4px]' : '',
+          !hasRightSame && !hasUpSame ? 'rounded-tr-[4px]' : '',
+          !hasLeftSame && !hasDownSame ? 'rounded-bl-[4px]' : '',
+          !hasRightSame && !hasDownSame ? 'rounded-br-[4px]' : ''
+        ]
+          .filter(Boolean)
+          .join(' ') || 'rounded-none'
+      : 'rounded-none';
 
     days.push(
       <div
         key={day}
         onClick={(event) => onDayClick(dateStr, Boolean(holidayName), event)}
         title={holidayName}
-        className={`h-7 w-7 flex items-center justify-center text-[13px] cursor-pointer ${isMarked ? 'rounded-full' : 'rounded-none'} ${bgColor} ${textColor} hover:opacity-70 transition-opacity relative group mx-auto`}
+        className={`h-8 w-full flex items-center justify-center cursor-pointer ${roundedClass} ${bgColor} ${textColor} hover:opacity-70 transition-opacity relative group`}
       >
-        {day}
+        <span className="calendar-day-number text-[13px] leading-[1]">{day}</span>
         {holidayName && (
           <div
             className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded transition-opacity pointer-events-none whitespace-nowrap z-10 ${
@@ -101,14 +148,14 @@ const CalendarMonth = memo(({
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 w-full min-w-0">
       <h3 className="text-left mb-3 text-black font-medium uppercase tracking-tight">{MONTH_NAMES[month]}</h3>
       <div className="grid grid-cols-7 gap-0 text-xs text-center mb-2 text-black">
         {WEEKDAY_LABELS.map((label) => (
           <div key={label}>{label}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-y-0.5 gap-x-0">
+      <div className="grid grid-cols-7 gap-0">
         {days}
       </div>
     </div>

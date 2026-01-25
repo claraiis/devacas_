@@ -31,10 +31,10 @@ const useVacationOptimizer = ({
         }
       : isWeekend;
     const confirmedSet = new Set();
-    const blockedSet = new Set();
+    const rejectedSet = new Set();
     Object.entries(config.manualOverrides).forEach(([dateStr, status]) => {
       if (status === 'confirmed') confirmedSet.add(dateStr);
-      if (status === 'blocked') blockedSet.add(dateStr);
+      if (status === 'rejected') rejectedSet.add(dateStr);
     });
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
       const normalized = normalizeDate(date);
@@ -80,7 +80,7 @@ const useVacationOptimizer = ({
           const range = [];
           for (let j = i; j <= endIndex; j += 1) {
             const dateStr = getDateStr(allDates[j]);
-            if (blockedSet.has(dateStr) || confirmedSet.has(dateStr)) {
+            if (rejectedSet.has(dateStr) || confirmedSet.has(dateStr)) {
               invalid = true;
               break;
             }
@@ -170,10 +170,11 @@ const useVacationOptimizer = ({
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
       const normalized = normalizeDate(date);
       const dateStr = getDateStr(normalized);
-      const isBlocked = config.manualOverrides[dateStr] === 'blocked';
+      const isRejected = config.manualOverrides[dateStr] === 'rejected';
+      const isConfirmed = confirmedSet.has(dateStr);
       const isOff = offDays.has(dateStr);
 
-      if (!isOff && !isBlocked) {
+      if (!isOff && !isRejected && !isConfirmed) {
         if (!currentGap) {
           currentGap = { start: normalizeDate(date), days: [], startDay: normalized.getDay() };
         }
@@ -301,22 +302,10 @@ const useVacationOptimizer = ({
     normalizeDate
   ]);
 
-  // Función optimizeVacations actualiza el estado y marca los días como 'confirmed'
+  // Función optimizeVacations calcula días sugeridos
   const optimizeVacations = useCallback(() => {
     setOptimizedDays(memoizedOptimizedDays);
-    
-    // Marcar los días optimizados directamente como 'confirmed' en manualOverrides
-    setConfig((prev) => {
-      const newOverrides = { ...prev.manualOverrides };
-      // Solo marcar como 'confirmed' los días que no están bloqueados
-      memoizedOptimizedDays.forEach((dateStr) => {
-        if (prev.manualOverrides[dateStr] !== 'blocked') {
-          newOverrides[dateStr] = 'confirmed';
-        }
-      });
-      return { ...prev, manualOverrides: newOverrides };
-    });
-    
+
     setShowCalendar(true);
 
     setTimeout(() => {
@@ -325,7 +314,6 @@ const useVacationOptimizer = ({
   }, [
     memoizedOptimizedDays,
     outputRef,
-    setConfig,
     setOptimizedDays,
     setShowCalendar
   ]);

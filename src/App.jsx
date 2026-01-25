@@ -1,50 +1,56 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronDown, Plus, X, Info, RefreshCw } from 'lucide-react';
-import Calendar from './components/Calendar';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import AppHeader from './components/AppHeader';
+import HelpModal from './components/HelpModal';
+import HeroSection from './components/HeroSection';
+import VacationForm from './components/VacationForm';
+import CalendarLayout from './components/CalendarLayout';
+import AppFooter from './components/AppFooter';
+import CalendarActionBar from './components/CalendarActionBar';
 import useDateFormatter from './hooks/useDateFormatter';
 import useHolidays from './hooks/useHolidays';
 import useCalendarState from './hooks/useCalendarState';
 import useVacationOptimizer from './hooks/useVacationOptimizer';
 import useDebounceLocalStorage from './hooks/useDebounceLocalStorage';
-import { POSTAL_TO_REGION } from './constants/holidays';
-import { THEME_COLORS } from './constants/colors';
+import useVacationConfig from './hooks/useVacationConfig';
+import useVacationFormState from './hooks/useVacationFormState';
+import useHeroTyping from './hooks/useHeroTyping';
+
+const HERO_SUFFIXES = [
+  'fiestas en el pueblo_',
+  'rutas por la montaña_',
+  'viajes en familia_',
+  'paseos por la playa_',
+  'escapadas a la ciudad_',
+  'días devacas_',
+];
+const COUNTRY_OPTIONS = [{ value: 'ES', label: 'España' }];
+const YEAR_OPTIONS = [{ value: 2026, label: '2026' }];
+const VACATION_TYPE_OPTIONS = [
+  { value: 'laborables', label: 'laborables' },
+  { value: 'naturales', label: 'naturales' }
+];
 
 const VacationOptimizer = () => {
   const [showForm, setShowForm] = useState(false);
   const [shouldScrollToForm, setShouldScrollToForm] = useState(false);
   const [heroOpacity, setHeroOpacity] = useState(1);
-  const [heroPhraseIndex, setHeroPhraseIndex] = useState(0);
-  const [heroTyped, setHeroTyped] = useState('');
-  const [heroIsDeleting, setHeroIsDeleting] = useState(false);
   const [openSelect, setOpenSelect] = useState(null);
   const [openSelectPlacement, setOpenSelectPlacement] = useState('down');
-  const [config, setConfig] = useState({
-    country: 'ES',
-    postalCode: '',
-    year: 2026,
-    vacationDays: 22,
-    vacationType: 'laborables',
-    workDays: 'L-V',
-    weeklyBlocks: false,
-    prioritizeSummerWinter: false,
-    customHolidays: [],
-    manualOverrides: {}
-  });
+  const { config, setConfig } = useVacationConfig();
   
-  const [newHoliday, setNewHoliday] = useState({ date: '', name: '' });
   const [showCalendar, setShowCalendar] = useState(false);
   const [showLimitBanner, setShowLimitBanner] = useState(false);
-  const [holidayError, setHolidayError] = useState('');
-  const [postalCodeError, setPostalCodeError] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showPostalCodeTooltip, setShowPostalCodeTooltip] = useState(false);
+  const [isTransitioningToCalendar, setIsTransitioningToCalendar] = useState(false);
+  const [showFormOverlay, setShowFormOverlay] = useState(false);
   const [lastAction, setLastAction] = useState({ date: '', status: '' });
   const calendarRef = useRef(null);
   const outputRef = useRef(null);
   const formRef = useRef(null);
   const heroTitleRef = useRef(null);
   const headerRef = useRef(null);
-  const isMobileRef = useRef(window.matchMedia('(max-width: 767px)'));
+  const isMobileRef = useRef({ matches: false });
   const countrySelectRef = useRef(null);
   const yearSelectRef = useRef(null);
   const vacationTypeSelectRef = useRef(null);
@@ -53,26 +59,10 @@ const VacationOptimizer = () => {
   const modalRef = useRef(null);
   const modalScrollRef = useRef(null);
   const prevWorkDaysRef = useRef(config.workDays);
-  const heroSuffixes = useMemo(
-    () => [
-      'fiestas en el pueblo_',
-      'rutas por la montaña_',
-      'viajes en familia_',
-      'paseos por la playa_',
-      'escapadas a la ciudad_',
-      'días devacas_',
-    ],
-    []
-  );
-  const countryOptions = useMemo(() => [{ value: 'ES', label: 'España' }], []);
-  const yearOptions = useMemo(() => [{ value: 2026, label: '2026' }], []);
-  const vacationTypeOptions = useMemo(
-    () => [
-      { value: 'laborables', label: 'laborables' },
-      { value: 'naturales', label: 'naturales' }
-    ],
-    []
-  );
+  const heroSuffixes = HERO_SUFFIXES;
+  const countryOptions = COUNTRY_OPTIONS;
+  const yearOptions = YEAR_OPTIONS;
+  const vacationTypeOptions = VACATION_TYPE_OPTIONS;
   const getSelectPlacement = (optionsCount, rect) => {
     const itemHeight = 40;
     const menuHeight = optionsCount * itemHeight + 8;
@@ -89,10 +79,12 @@ const VacationOptimizer = () => {
     activeTooltip,
     handleDayClick,
     downloadCalendar,
+    shareCalendar,
+    confirmSuggestedDays,
     isWeekend,
     isHoliday,
     vacationDaysNumber,
-    daysGenerated,
+    daysSuggested,
     daysAssigned,
     daysAvailable
   } = useCalendarState({
@@ -106,55 +98,37 @@ const VacationOptimizer = () => {
     setShowLimitBanner
   });
 
-  // Eliminar sábados confirmados cuando se cambia de L-S a L-V
+  const getInvalidOverrides = (manualOverrides) => {
+    return Object.keys(manualOverrides).filter((dateStr) => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      return isWeekend(date) || isHoliday(date);
+    });
+  };
+
+  // Eliminar overrides en fines de semana o festivos según los días laborables actuales
   useEffect(() => {
-    const prevWorkDays = prevWorkDaysRef.current;
-    const currentWorkDays = config.workDays;
-    
-    // Solo ejecutar si cambió de 'L-S' a 'L-V'
-    if (prevWorkDays === 'L-S' && currentWorkDays === 'L-V') {
-      // Usar función de actualización para acceder al estado actual
+    const invalidOverrides = getInvalidOverrides(config.manualOverrides);
+    if (invalidOverrides.length > 0) {
       setConfig((prev) => {
-        // Buscar todos los sábados confirmados y eliminarlos
-        const saturdaysToRemove = [];
-        
-        Object.keys(prev.manualOverrides).forEach((dateStr) => {
-          if (prev.manualOverrides[dateStr] === 'confirmed') {
-            // Parsear la fecha (formato YYYY-MM-DD)
-            const [year, month, day] = dateStr.split('-').map(Number);
-            const date = new Date(year, month - 1, day);
-            const dayOfWeek = date.getDay(); // 0 = domingo, 6 = sábado
-            
-            if (dayOfWeek === 6) { // Es sábado
-              saturdaysToRemove.push(dateStr);
-            }
-          }
+        const newOverrides = { ...prev.manualOverrides };
+        invalidOverrides.forEach((dateStr) => {
+          delete newOverrides[dateStr];
         });
-
-        if (saturdaysToRemove.length > 0) {
-          const newOverrides = { ...prev.manualOverrides };
-          saturdaysToRemove.forEach((dateStr) => {
-            delete newOverrides[dateStr];
-          });
-          
-          // También eliminar de optimizedDays
-          setOptimizedDays((prevOptimized) => 
-            prevOptimized.filter((day) => !saturdaysToRemove.includes(day))
-          );
-          
-          return { ...prev, manualOverrides: newOverrides };
-        }
-        
-        return prev;
+        return { ...prev, manualOverrides: newOverrides };
       });
+      setOptimizedDays((prevOptimized) =>
+        prevOptimized.filter((day) => !invalidOverrides.includes(day))
+      );
     }
-    
-    // Actualizar el ref con el valor actual
-    prevWorkDaysRef.current = currentWorkDays;
-  }, [config.workDays, setOptimizedDays]);
+
+    prevWorkDaysRef.current = config.workDays;
+  }, [config.workDays, config.manualOverrides, isHoliday, isWeekend, setOptimizedDays]);
 
   useEffect(() => {
-    const mql = isMobileRef.current;
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 767px)');
+    isMobileRef.current = mql;
     const handleChange = (event) => {
       isMobileRef.current = event.currentTarget;
     };
@@ -193,6 +167,7 @@ const VacationOptimizer = () => {
 
   useEffect(() => {
     const handleScroll = () => {
+      if (isTransitioningToCalendar || showCalendar || showFormOverlay) return;
       const triggerPoint = window.innerHeight * 0.5;
       const shouldShow = window.scrollY >= triggerPoint;
       const fadeProgress = Math.min(1, window.scrollY / triggerPoint);
@@ -210,7 +185,7 @@ const VacationOptimizer = () => {
     handleScroll();
 
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isTransitioningToCalendar, showCalendar, showFormOverlay]);
 
   useEffect(() => {
     if (!openSelect) return;
@@ -243,33 +218,7 @@ const VacationOptimizer = () => {
     };
   }, [openSelect]);
 
-  useEffect(() => {
-    const currentPhrase = heroSuffixes[heroPhraseIndex];
-    let timeoutId;
-
-    if (!heroIsDeleting) {
-      if (heroTyped === currentPhrase) {
-        timeoutId = window.setTimeout(() => setHeroIsDeleting(true), 1200);
-      } else {
-        timeoutId = window.setTimeout(
-          () => setHeroTyped(currentPhrase.slice(0, heroTyped.length + 1)),
-          80
-        );
-      }
-    } else {
-      if (heroTyped === '') {
-        setHeroIsDeleting(false);
-        setHeroPhraseIndex((prev) => (prev + 1) % heroSuffixes.length);
-      } else {
-        timeoutId = window.setTimeout(
-          () => setHeroTyped(currentPhrase.slice(0, heroTyped.length - 1)),
-          40
-        );
-      }
-    }
-
-    return () => window.clearTimeout(timeoutId);
-  }, [heroTyped, heroIsDeleting, heroPhraseIndex, heroSuffixes]);
+  const heroTyped = useHeroTyping(heroSuffixes);
 
   const handlePrimaryAction = () => {
     if (!showForm) {
@@ -277,12 +226,26 @@ const VacationOptimizer = () => {
       setShouldScrollToForm(true);
       return;
     }
-    optimizeVacations();
+    handleOptimizeVacations();
   };
-  const handleEditPreferences = useCallback(() => {
+  const handleLogoClick = useCallback(() => {
     setShowCalendar(false);
+    setShowForm(false);
+    setHeroOpacity(1);
+    setShouldScrollToForm(false);
+    setShowFormOverlay(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+  const handleEditPreferences = useCallback(() => {
+    setShowCalendar(true);
     setShowForm(true);
     setShouldScrollToForm(true);
+    setShowFormOverlay(true);
+  }, []);
+  const handleCloseFormOverlay = useCallback(() => {
+    setShowFormOverlay(false);
+    setShowForm(false);
+    setShouldScrollToForm(false);
   }, []);
   const handleHelpModalBackdropClick = useCallback((event) => {
     if (event.target === event.currentTarget) {
@@ -300,6 +263,24 @@ const VacationOptimizer = () => {
     setShowCalendar,
     outputRef
   });
+
+  const handleOptimizeVacations = useCallback(() => {
+    if (isTransitioningToCalendar) return;
+    setIsTransitioningToCalendar(true);
+    setShowForm(false);
+    setShowFormOverlay(false);
+    window.setTimeout(() => {
+      optimizeVacations();
+      setIsTransitioningToCalendar(false);
+    }, 700);
+  }, [isTransitioningToCalendar, optimizeVacations]);
+
+  const handleResetCalendar = useCallback(() => {
+    setOptimizedDays([]);
+    setShowLimitBanner(false);
+    setLastAction({ date: '', status: '' });
+    setConfig((prev) => ({ ...prev, manualOverrides: {} }));
+  }, [setConfig, setOptimizedDays]);
 
   // Prevenir scroll horizontal
   useEffect(() => {
@@ -361,6 +342,17 @@ const VacationOptimizer = () => {
   }, [showHelpModal]);
 
   useEffect(() => {
+    if (!showFormOverlay) return;
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        handleCloseFormOverlay();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showFormOverlay, handleCloseFormOverlay]);
+
+  useEffect(() => {
     if (!showHelpModal) return;
     const scrollEl = modalScrollRef.current;
     if (!scrollEl) return;
@@ -410,65 +402,16 @@ const VacationOptimizer = () => {
   // Reduce escrituras de ~50/segundo a 1 cada 500ms
   useDebounceLocalStorage('vacationConfig', config, 500);
 
-
-  const handlePostalCodeChange = useCallback((value) => {
-    const cleaned = value.replace(/\D/g, '').slice(0, 5);
-    setConfig(prev => {
-      // Mostrar warning si el código no mapea a ninguna región (solo para España)
-      if (prev.country === 'ES') {
-        const province = cleaned.substring(0, 2);
-        if (cleaned.length === 5 && !POSTAL_TO_REGION[province]) {
-          setPostalCodeError('Código postal no reconocido');
-        } else {
-          setPostalCodeError('');
-        }
-      } else {
-        setPostalCodeError('');
-      }
-      
-      return { ...prev, postalCode: cleaned };
-    });
-  }, []);
-
-  const addCustomHoliday = useCallback(() => {
-    if (!newHoliday.name.trim()) {
-      setHolidayError('Debes indicar el nombre del festivo.');
-      return;
-    }
-    if (!newHoliday.date) {
-      setHolidayError('Debes indicar la fecha del festivo.');
-      return;
-    }
-    // Validar formato DD/MM
-    const datePattern = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])$/;
-    if (!datePattern.test(newHoliday.date)) {
-      setHolidayError('Formato de fecha inválido. Usa DD/MM (Ej: 25/12).');
-      return;
-    }
-    if (newHoliday.date && newHoliday.name) {
-      // Convertir DD/MM a formato YYYY-MM-DD
-      const [day, month] = newHoliday.date.split('/');
-      const fullDate = `${config.year}-${month}-${day}`;
-      setConfig(prev => ({
-        ...prev,
-        customHolidays: [...prev.customHolidays, { date: fullDate, name: newHoliday.name }]
-      }));
-      setNewHoliday({ date: '', name: '' });
-      setHolidayError('');
-
-      // Hacer focus en el campo de fecha para añadir otro festivo
-      setTimeout(() => {
-        holidayDateInputRef.current?.focus();
-      }, 0);
-    }
-  }, [config.year, newHoliday.date, newHoliday.name]);
-
-  const removeCustomHoliday = useCallback((index) => {
-    setConfig(prev => ({
-      ...prev,
-      customHolidays: prev.customHolidays.filter((_, i) => i !== index)
-    }));
-  }, []);
+  const {
+    newHoliday,
+    setNewHoliday,
+    holidayError,
+    setHolidayError,
+    postalCodeError,
+    handlePostalCodeChange,
+    addCustomHoliday,
+    removeCustomHoliday
+  } = useVacationFormState({ config, setConfig, holidayDateInputRef });
 
 
   return (
@@ -487,633 +430,177 @@ const VacationOptimizer = () => {
       </div>
 
       {/* Header fijo */}
-      <header
-        ref={headerRef}
-        className={`${showCalendar ? 'hidden' : 'fixed'} top-0 left-0 right-0 z-50 py-6 md:py-8 bg-transparent`}
-      >
-        <div className="w-full mx-auto px-6 md:px-16 flex justify-between items-center">
-          {/* Logo */}
-          <h1 className="text-2xl md:text-3xl font-medium text-white uppercase tracking-tight">devacas_</h1>
-          
-          {/* Botones derecha */}
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => setShowHelpModal(true)}
-              className="text-white uppercase text-sm font-medium tracking-wide hover:opacity-70 transition-opacity"
-            >
-              <span className="hidden md:inline">¿Cómo funciona?</span>
-              <Info className="md:hidden" size={18} aria-hidden="true" />
-            </button>
-            <button
-              onClick={handlePrimaryAction}
-              className={`px-6 py-2.5 bg-black text-white uppercase text-sm font-medium tracking-wide rounded-full items-center gap-2 hover:bg-gray-900 transition-colors ${showForm ? 'hidden' : 'flex'}`}
-            >
-              {showForm ? 'Optimizar mis vacaciones' : 'Empezar'}
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        headerRef={headerRef}
+        showCalendar={showCalendar}
+        showForm={showForm}
+        onPrimaryAction={handlePrimaryAction}
+        onShowHelpModal={() => setShowHelpModal(true)}
+        onLogoClick={handleLogoClick}
+        calendarStats={{
+          daysAssigned,
+          daysAvailable,
+          daysSuggested
+        }}
+      />
 
       {/* Help Modal */}
       {showHelpModal && (
-        <div
-          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
-          onClick={handleHelpModalBackdropClick}
-        >
-          <div
-            ref={modalRef}
-            className="w-full max-w-4xl mx-auto backdrop-blur-md bg-white/70 rounded-3xl shadow-2xl px-12 md:px-16 py-12 md:py-16 max-h-[85vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-title"
-          >
-            <div
-              ref={modalScrollRef}
-              className="modal-scroll max-h-[calc(85vh-6rem)] md:max-h-[calc(85vh-8rem)] overflow-y-auto pr-2"
-            >
-                {/* Modal Header */}
-                <div className="pb-6 bg-transparent flex justify-between items-center">
-                  <h2 id="modal-title" className="text-2xl md:text-3xl font-medium text-black">
-                    <span className="md:hidden">¿Cómo funciona?</span>
-                    <span className="hidden md:inline">¿Cómo funciona DEVACAS_?</span>
-                  </h2>
-                  <button
-                    onClick={() => setShowHelpModal(false)}
-                    className="rounded-full p-2 text-black/70 hover:text-black"
-                    aria-label="Cerrar modal"
-                  >
-                    <X size={24} />
-                  </button>
-                </div>
-
-                {/* Modal Content */}
-                <div className="space-y-8 text-black/80">
-                  {/* Sección 1: Eficiencia */}
-                  <section>
-                    <p className="mb-3">
-                      DEVACAS_ analiza todo el calendario del año para encontrar las mejores oportunidades de maximizar tus días libres,
-                      priorizando periodos extendidos de vacaciones* según su ratio de eficiencia:
-                    </p>
-                    <div className="bg-black/10 p-4 mb-3 border-l-4 border-black">
-                      <p className="font-mono text-sm text-black">
-                        <strong>Eficiencia</strong> = Días libres totales / Días de vacaciones gastados
-                      </p>
-                    </div>
-                    <p className="mb-3 text-sm">
-                      * El algoritmo entiende por periodos extendidos de vacaciones aquellos de 3 o más días, buscando siempre el mejor ratio posible.
-                    </p>
-                  </section>
-
-                  {/* Sección 2: Funcionamiento */}
-                  <section>
-                    <h3 className="text-xl font-medium mb-3 text-black">Calendario de vacaciones a tu medida</h3>
-                      <p className="mb-3">
-                      Mientras otras herramientas se limitan a decirte cuándo caen los puentes, DEVACAS_ se adapta a tu realidad.
-                    </p>
-                    <p className="mb-3">
-                      Te permite escoger entre vacaciones en días naturales o laborables, definir tus días de trabajo, añadir festivos por convenio e indicar posibles condicionantes a la hora de cogerte vacaciones.
-                    </p>
-                    <p className="mb-2">
-                      A partir de ahí, el algoritmo busca los huecos más rentables y te propone un calendario optimizado para ti, no para "la media".
-                    </p>
-                    <p className="mb-2">
-                      ¿Uno de los días sugeridos no te convence? Lo rechazas.
-                    </p>
-                    <p className="mb-2">
-                      ¿Prefieres este otro? Lo reservas.
-                    </p>
-                    <p className="mb-2">
-                      ¿Tu compañero ya se ha cogido vacaciones esa semana y no podéis coincidir? La bloqueas.
-                    </p>
-                  </section>
-
-                  {/* Sección 3: Fuentes */}
-                  <section>
-                    <h3 className="text-xl font-medium mb-3 text-black">Fuentes de datos</h3>
-                    <p className="mb-2">
-                      Los festivos están incluidos directamente en el código de la aplicación.
-                    </p>
-                    <ul className="list-disc list-inside space-y-1">
-                      <li><strong>Festivos nacionales:</strong> <a href="https://date.nager.at/" className="text-black hover:underline">Nager.Date API</a></li>
-                      <li><strong>Festivos autonómicos:</strong> <a href="https://www.rtve.es/noticias/20251006/calendario-laboral-2026-festivos-puentes-nacionales-autonomicos/16744047.shtml" className="text-black hover:underline">Este artículo recopilatorio de RTVE</a></li>
-                    </ul>
-                    <p className="text-sm mt-3">
-                      *Los datos se basan en el calendario oficial español. Puedes añadir festivos adicionales
-                      en la sección "Festivos de convenio / locales" si tu empresa o localidad tiene días especiales.
-                    </p>
-                  </section>
-
-                  {/* Nota final */}
-                  <div className="bg-black/10 rounded p-4 text-sm text-black/80">
-                    <p>
-                      💡 <strong>Recuerda:</strong> Esta es una herramienta de planificación.
-                      Los días propuestos son sugerencias que puedes confirmar, modificar o eliminar según tus necesidades.
-                      Verifica siempre las políticas de vacaciones de tu empresa.
-                    </p>
-                  </div>
-                </div>
-            </div>
-          </div>
-        </div>
+        <HelpModal
+          modalRef={modalRef}
+          modalScrollRef={modalScrollRef}
+          onBackdropClick={handleHelpModalBackdropClick}
+          onClose={() => setShowHelpModal(false)}
+        />
       )}
 
       {!showCalendar && (
         <>
           {/* Hero Section - H1 grande */}
-          <div className="h-screen" aria-hidden="true" />
-          <div
-            className="fixed inset-0 z-10 flex items-end transition-opacity duration-700 ease-in-out pointer-events-none"
-            style={{ opacity: heroOpacity }}
-          >
-            <div className="w-full mx-auto px-6 md:px-16 pb-6 md:pb-16">
-              <h1
-                ref={heroTitleRef}
-                className="text-5xl md:text-7xl lg:text-8xl font-bold text-white uppercase tracking-tight leading-tight w-full min-h-[6.4em] md:min-h-[2em]"
-              >
-                <span className="block">Convierte días sueltos en</span>
-                <span className="block min-h-[2.4em] md:min-h-[1em]">{heroTyped || '\u00A0'}</span>
-              </h1>
-            </div>
-          </div>
-
-          {/* Formulario con blur overlay - oculto al inicio */}
-          <div
-            ref={formRef}
-            className={`relative z-20 transition-opacity duration-700 ease-in-out ${showForm ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-          >
-            <div className="backdrop-blur-md bg-white/20 rounded-3xl shadow-2xl w-full max-w-4xl mx-auto px-12 md:px-16 py-12 md:py-16">
-              <div className="space-y-12">
-
-            {/* Sección 1: Configuración básica */}
-            <div className="mb-8">
-              <h2 className="text-2xl md:text-3xl font-medium mb-6 text-black tracking-tight">Empecemos por lo básico</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="block mb-2 font-medium text-black">País</h3>
-                <div ref={countrySelectRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (openSelect === 'country') {
-                        setOpenSelect(null);
-                        return;
-                      }
-                      const rect = countrySelectRef.current?.getBoundingClientRect();
-                      if (rect) {
-                        setOpenSelectPlacement(getSelectPlacement(countryOptions.length, rect));
-                      }
-                      setOpenSelect('country');
-                    }}
-                    className="w-full py-2 px-4 bg-black/30 text-white rounded-full flex items-center justify-between"
-                    aria-haspopup="listbox"
-                    aria-expanded={openSelect === 'country'}
-                  >
-                    <span>{countryOptions.find((opt) => opt.value === config.country)?.label}</span>
-                    <ChevronDown className="text-white" size={18} />
-                  </button>
-                  {openSelect === 'country' && (
-                    <div className={`absolute ${openSelectPlacement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} w-full bg-black/80 text-white rounded-2xl shadow-lg z-20 p-1`}>
-                      {countryOptions.map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => {
-                            setConfig((prev) => ({ ...prev, country: opt.value }));
-                            setOpenSelect(null);
-                          }}
-                          className="w-full text-left px-4 py-2 rounded-xl hover:bg-white/10"
-                          role="option"
-                          aria-selected={config.country === opt.value}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="block mb-2 font-medium flex items-center gap-2 text-black">
-                  Código postal
-                  <div className="relative group">
-                    <Info
-                      size={18}
-                      className="text-black cursor-help"
-                      onClick={() => {
-                        setShowPostalCodeTooltip(true);
-                        setTimeout(() => setShowPostalCodeTooltip(false), 3000);
-                      }}
-                    />
-                    <div className={`absolute left-0 top-full mt-2 w-64 p-3 bg-gray-900  text-white text-sm rounded-[4px] shadow-lg transition-all duration-200 z-20 ${
-                      showPostalCodeTooltip ? 'opacity-100 visible' : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'
-                    }`}>
-                      Los días festivos se calculan en base a este código postal.
-                    </div>
-                  </div>
-                </h3>
-                <input
-                  type="text"
-                  value={config.postalCode}
-                  onChange={(e) => handlePostalCodeChange(e.target.value)}
-                  placeholder="Ej: 15009"
-                  className="w-full py-2 px-4 bg-black/30 text-white placeholder:text-white/50 rounded-full"
-                  maxLength="5"
-                  aria-labelledby="postal-code-heading"
-                />
-                {postalCodeError && (
-                  <p className="text-sm text-orange-600 mt-1">⚠️ {postalCodeError}</p>
-                )}
-              </div>
-
-              <div>
-                <h3 className="block mb-2 font-medium text-black">Año</h3>
-                <div ref={yearSelectRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (openSelect === 'year') {
-                        setOpenSelect(null);
-                        return;
-                      }
-                      const rect = yearSelectRef.current?.getBoundingClientRect();
-                      if (rect) {
-                        setOpenSelectPlacement(getSelectPlacement(yearOptions.length, rect));
-                      }
-                      setOpenSelect('year');
-                    }}
-                    className="w-full py-2 px-4 bg-black/30 text-white rounded-full flex items-center justify-between"
-                    aria-haspopup="listbox"
-                    aria-expanded={openSelect === 'year'}
-                  >
-                    <span>{yearOptions.find((opt) => opt.value === config.year)?.label}</span>
-                    <ChevronDown className="text-white" size={18} />
-                  </button>
-                  {openSelect === 'year' && (
-                    <div className={`absolute ${openSelectPlacement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} w-full bg-black/80 text-white rounded-2xl shadow-lg z-20 p-1`}>
-                      {yearOptions.map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => {
-                            setConfig((prev) => ({ ...prev, year: opt.value }));
-                            setOpenSelect(null);
-                          }}
-                          className="w-full text-left px-4 py-2 rounded-xl hover:bg-white/10"
-                          role="option"
-                          aria-selected={config.year === opt.value}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="block mb-2 font-medium text-black">Días de vacaciones</h3>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <input
-                    type="number"
-                    value={config.vacationDays}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      const numValue = value === '' ? '' : parseInt(value, 10);
-                      setConfig(prev => ({ ...prev, vacationDays: isNaN(numValue) ? '' : numValue }));
-                    }}
-                    className="w-full py-2 px-4 bg-black/30 text-white rounded-full appearance-none"
-                    min="0"
-                    />
-                  </div>
-                  <div ref={vacationTypeSelectRef} className="relative flex-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (openSelect === 'vacationType') {
-                          setOpenSelect(null);
-                          return;
-                        }
-                        const rect = vacationTypeSelectRef.current?.getBoundingClientRect();
-                        if (rect) {
-                          setOpenSelectPlacement(getSelectPlacement(vacationTypeOptions.length, rect));
-                        }
-                        setOpenSelect('vacationType');
-                      }}
-                      className="w-full py-2 px-4 bg-black/30 text-white rounded-full flex items-center justify-between whitespace-nowrap"
-                      aria-haspopup="listbox"
-                      aria-expanded={openSelect === 'vacationType'}
-                    >
-                      <span>{vacationTypeOptions.find((opt) => opt.value === config.vacationType)?.label}</span>
-                      <ChevronDown className="text-white" size={18} />
-                    </button>
-                    {openSelect === 'vacationType' && (
-                      <div className={`absolute ${openSelectPlacement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} w-full bg-black/80 text-white rounded-2xl shadow-lg z-20 p-1`}>
-                        {vacationTypeOptions.map((opt) => (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => {
-                              setConfig((prev) => ({ ...prev, vacationType: opt.value }));
-                              setOpenSelect(null);
-                            }}
-                            className="w-full text-left px-4 py-2 rounded-xl hover:bg-white/10"
-                            role="option"
-                            aria-selected={config.vacationType === opt.value}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {config.country === 'ES' && (config.vacationDays === '' || config.vacationDays < 22) && (
-                  <p className="text-sm text-red-700 mt-2">
-                    ⚠️ En España el mínimo legal son 22 días laborables.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            </div>
-            
-            {/* Sección 2: Festivos de convenio */}
-            <div>
-              <h2 className="text-2xl md:text-3xl font-medium mb-6 text-black tracking-tight">Añade tus festivos locales / por convenio</h2>
-              <div>
-                <div className="flex flex-col md:flex-row gap-4 mb-4">
-              <input
-                ref={holidayDateInputRef}
-                type="text"
-                value={newHoliday.date}
-                onChange={(e) => {
-                  let value = e.target.value.replace(/[^\d]/g, ''); // Solo números
-
-                  // Formatear automáticamente con /
-                  if (value.length >= 2) {
-                    value = value.slice(0, 2) + '/' + value.slice(2, 4);
-                  }
-
-                  setNewHoliday(prev => ({ ...prev, date: value }));
-                  if (holidayError) setHolidayError('');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    addCustomHoliday();
-                  }
-                }}
-                placeholder="DD/MM (Ej: 25/12)"
-                className="flex-1 py-2 px-4 bg-black/30 text-white placeholder:text-white/50 rounded-full"
-                maxLength="5"
-              />
-              <input
-                type="text"
-                value={newHoliday.name}
-                onChange={(e) => {
-                  setNewHoliday(prev => ({ ...prev, name: e.target.value }));
-                  if (holidayError) setHolidayError('');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    addCustomHoliday();
-                  }
-                }}
-                placeholder="Nombre del festivo"
-                className="flex-1 py-2 px-4 bg-black/30 text-white placeholder:text-white/50 rounded-full"
-              />
-              <button
-                onClick={addCustomHoliday}
-                className="w-full md:w-auto px-6 py-2 bg-white text-black flex items-center justify-center gap-2 rounded-full transition-colors"
-              >
-                <Plus size={20} /> Añadir
-              </button>
-            </div>
-
-            {holidayError && (
-              <p className="text-sm text-red-600 mb-4">{holidayError}</p>
-            )}
-
-            {config.customHolidays.length > 0 && (
-              <div className="space-y-0">
-                {config.customHolidays.map((holiday, idx) => {
-                  const [year, month, day] = holiday.date.split('-');
-                  const formattedDate = `${day}/${month}/${year}`;
-                  return (
-                    <div key={idx} className="flex items-center gap-3 p-2 bg-transparent">
-                      <span className="text-white">
-                        <strong>{formattedDate}</strong> - {holiday.name}
-                      </span>
-                      <button
-                        onClick={() => removeCustomHoliday(idx)}
-                        className="flex items-center text-red-500 hover:text-red-600"
-                      >
-                        <X size={22} strokeWidth={2.5} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-              </div>
-            </div>
-            
-            {/* Sección 3: Personalización */}
-            <div ref={section3Ref}>
-              <h2 className="text-2xl md:text-3xl font-medium mb-6 text-black tracking-tight">Escoge tus preferencias</h2>
-              <div className="space-y-6">
-                {/* Contenedor de preguntas - Grid de 2 columnas en desktop */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              {/* Columna izquierda - Checkboxes */}
-              <div className="space-y-3">
-                <div>
-                  <label htmlFor="weekly-blocks" className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      id="weekly-blocks"
-                      type="checkbox"
-                      checked={config.weeklyBlocks}
-                      onChange={(e) => setConfig(prev => ({ ...prev, weeklyBlocks: e.target.checked }))}
-                      className="w-5 h-5 cursor-pointer"
-                      style={{ accentColor: THEME_COLORS.primary }}
-                    />
-                    <span className="font-medium text-black">Vacaciones en bloques semanales</span>
-                  </label>
-                </div>
-
-                <div>
-                  <label htmlFor="prioritize-summer-winter" className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      id="prioritize-summer-winter"
-                      type="checkbox"
-                      checked={config.prioritizeSummerWinter}
-                      onChange={(e) => setConfig(prev => ({ ...prev, prioritizeSummerWinter: e.target.checked }))}
-                      className="w-5 h-5 cursor-pointer"
-                      style={{ accentColor: THEME_COLORS.primary }}
-                    />
-                    <span className="font-medium text-black">Priorizar verano y Navidad</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Columna derecha - Horario laboral */}
-              {config.vacationType !== 'naturales' && (
-                <div>
-                <label className="block mb-3 font-medium text-black">¿Qué días trabajas?</label>
-                <div className="grid grid-cols-2 gap-4">
-                  <label htmlFor="workdays-lv" className="flex items-center gap-3 cursor-pointer text-black">
-                    <input
-                      id="workdays-lv"
-                      type="radio"
-                      name="workDays"
-                      value="L-V"
-                      checked={config.workDays === 'L-V'}
-                      onChange={(e) => setConfig(prev => ({ ...prev, workDays: e.target.value }))}
-                      className="w-5 h-5 cursor-pointer flex-shrink-0"
-                      style={{ accentColor: THEME_COLORS.primary }}
-                    />
-                    Lunes a viernes
-                  </label>
-                  <label htmlFor="workdays-ls" className="flex items-center gap-3 cursor-pointer text-black">
-                    <input
-                      id="workdays-ls"
-                      type="radio"
-                      name="workDays"
-                      value="L-S"
-                      checked={config.workDays === 'L-S'}
-                      onChange={(e) => setConfig(prev => ({ ...prev, workDays: e.target.value }))}
-                      className="w-5 h-5 cursor-pointer flex-shrink-0"
-                      style={{ accentColor: THEME_COLORS.primary }}
-                    />
-                    Lunes a sábado
-                  </label>
-                </div>
-              </div>
-              )}
-            </div>
-
-              </div>
-            </div>
-
-            {/* Botón Optimizar */}
-            <div className="flex justify-center">
-              <button
-                onClick={optimizeVacations}
-                className=" w-full px-8 py-4 bg-black text-white uppercase text-sm font-medium tracking-wide rounded-full hover:bg-gray-900 transition-colors"
-              >
-                Optimizar mis vacaciones
-              </button>
-            </div>
-              </div>
-            </div>
-          </div>
+          <HeroSection
+            heroOpacity={heroOpacity}
+            heroTitleRef={heroTitleRef}
+            heroTyped={heroTyped}
+          />
         </>
+      )}
+
+      {showFormOverlay ? (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto"
+          onClick={handleCloseFormOverlay}
+        >
+          <div className="w-full max-w-4xl" onClick={(event) => event.stopPropagation()}>
+            <VacationForm
+              isOverlay
+              showForm={showForm}
+              formRef={formRef}
+              holidayDateInputRef={holidayDateInputRef}
+              section3Ref={section3Ref}
+              optimizeVacations={handleOptimizeVacations}
+              configState={{ config, setConfig }}
+              selectState={{
+                openSelect,
+                setOpenSelect,
+                openSelectPlacement,
+                setOpenSelectPlacement,
+                getSelectPlacement,
+                options: {
+                  country: countryOptions,
+                  year: yearOptions,
+                  vacationType: vacationTypeOptions
+                },
+                refs: {
+                  country: countrySelectRef,
+                  year: yearSelectRef,
+                  vacationType: vacationTypeSelectRef
+                }
+              }}
+              formState={{
+                postalCodeError,
+                handlePostalCodeChange,
+                newHoliday,
+                setNewHoliday,
+                holidayError,
+                setHolidayError,
+                addCustomHoliday,
+                removeCustomHoliday
+              }}
+              tooltipState={{
+                showPostalCodeTooltip,
+                setShowPostalCodeTooltip
+              }}
+            />
+          </div>
+        </div>
+      ) : (
+        !showCalendar && (
+          <VacationForm
+            showForm={showForm}
+            formRef={formRef}
+            holidayDateInputRef={holidayDateInputRef}
+            section3Ref={section3Ref}
+            optimizeVacations={handleOptimizeVacations}
+            configState={{ config, setConfig }}
+            selectState={{
+              openSelect,
+              setOpenSelect,
+              openSelectPlacement,
+              setOpenSelectPlacement,
+              getSelectPlacement,
+              options: {
+                country: countryOptions,
+                year: yearOptions,
+                vacationType: vacationTypeOptions
+              },
+              refs: {
+                country: countrySelectRef,
+                year: yearSelectRef,
+                vacationType: vacationTypeSelectRef
+              }
+            }}
+            formState={{
+              postalCodeError,
+              handlePostalCodeChange,
+              newHoliday,
+              setNewHoliday,
+              holidayError,
+              setHolidayError,
+              addCustomHoliday,
+              removeCustomHoliday
+            }}
+            tooltipState={{
+              showPostalCodeTooltip,
+              setShowPostalCodeTooltip
+            }}
+          />
+        )
       )}
 
       {/* Calendar Section */}
       {showCalendar && (
-        <div className="relative bg-transparent h-screen overflow-hidden">
-          <div className="w-full h-full">
-            <div className="flex h-full flex-col md:flex-row gap-8">
-              <aside className="w-full md:w-fit md:h-full flex flex-col justify-between py-6 md:py-8 px-6 md:px-16 backdrop-blur-md bg-white/70 rounded-r-3xl shadow-2xl">
-                <div>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="text-black text-2xl md:text-3xl font-medium uppercase tracking-tight">devacas_</div>
-                    <button
-                      onClick={optimizeVacations}
-                      className="p-2 bg-white text-black rounded-full hover:bg-gray-100 transition-colors"
-                      aria-label="Recalcular"
-                    >
-                      <RefreshCw size={16} aria-hidden="true" />
-                    </button>
-                  </div>
-                  <div className="mt-16 text-black max-w-[240px] space-y-12">
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="text-left">
-                        <div className="text-4xl font-bold">{daysAssigned}</div>
-                        <div className="uppercase tracking-wide text-xs">Confirmados</div>
-                      </div>
-                      <div className="text-left">
-                        <div className="text-4xl font-bold">{daysAvailable}</div>
-                        <div className="uppercase tracking-wide text-xs">Sin confirmar</div>
-                      </div>
-                    </div>
-                    {showLimitBanner && (
-                      <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 rounded-[4px]">
-                        <p className="font-regular text-sm">Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días confirmados para añadir más.</p>
-                      </div>
-                    )}
-                    <div className="space-y-3 text-sm">
-                      <p>
-                        Haz clic en cualquier día para confirmarlo o rechazarlo, según tus preferencias.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-3 items-stretch pb-6 md:pb-8">
-                  <button
-                    onClick={handleEditPreferences}
-                    className="w-full px-6 py-2.5 bg-white text-black uppercase text-sm font-medium tracking-wide rounded-full hover:bg-gray-100 transition-colors text-center"
-                  >
-                    Editar preferencias
-                  </button>
-                  <button
-                    onClick={downloadCalendar}
-                    className="w-full px-6 py-2.5 bg-black text-white uppercase text-sm font-medium tracking-wide rounded-full hover:bg-gray-900 transition-colors text-center"
-                  >
-                    Descargar calendario
-                  </button>
-                </div>
-              </aside>
-              <div className="flex-1 h-full overflow-y-auto pr-6 md:pr-8">
-                <div ref={calendarRef} className="min-h-full">
-                  {/* Región aria-live para anunciar cambios a lectores de pantalla */}
-                  <div aria-live="polite" aria-atomic="true" className="sr-only">
-                    {lastAction.date && `Día ${lastAction.date} ${lastAction.status}`}
-                  </div>
-
-                  <Calendar
-                    year={config.year}
-                    manualOverrides={config.manualOverrides}
-                    customHolidays={config.customHolidays}
-                    normalizeDate={normalizeDate}
-                    getDateStr={getDateStr}
-                    isWeekend={isWeekend}
-                    isHoliday={isHoliday}
-                    getHolidayInfo={getHolidayInfo}
-                    optimizedDays={optimizedDays}
-                    activeTooltip={activeTooltip}
-                    onDayClick={handleDayClick}
-                  />
-                  <footer className="mt-12 w-full pb-8">
-                    <div className="flex flex-col md:flex-row justify-between gap-2">
-                      <p className="text-white text-sm text-left">
-                        Hecho con <span className="text-transparent" style={{ WebkitTextStroke: '1px #ffffff' }}>♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/" className="hover:underline">Clara Iglesias</a>
-                      </p>
-                      <p className="text-white text-sm text-right">
-                        <a href="https://github.com/claraiis/devacas_" className="hover:underline">Ver repositorio en Github</a>
-                      </p>
-                    </div>
-                  </footer>
-                </div>
+        <div className="animate-fade-in">
+          {showLimitBanner && (
+            <div className="fixed top-20 md:top-24 left-0 right-0 z-40 px-6 md:px-16">
+              <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 rounded-[4px]">
+                <p className="font-regular text-sm">Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días confirmados para añadir más.</p>
               </div>
             </div>
-          </div>
+          )}
+          <CalendarActionBar
+            onSuggest={handleOptimizeVacations}
+            onConfirm={confirmSuggestedDays}
+            onEditPreferences={handleEditPreferences}
+            onReset={handleResetCalendar}
+            onShare={shareCalendar}
+          />
+        <CalendarLayout
+          calendarData={{
+            config,
+            calendarRef,
+            lastAction,
+            daysAssigned,
+            daysAvailable,
+            daysSuggested,
+            showLimitBanner,
+            vacationDaysNumber
+          }}
+          calendarLogic={{
+            normalizeDate,
+            getDateStr,
+            isWeekend,
+            isHoliday,
+            getHolidayInfo,
+            optimizedDays,
+            activeTooltip,
+            handleDayClick
+          }}
+        />
         </div>
       )}
 
       {/* Footer */}
-      <footer className={`relative z-30 mt-20 py-8 bg-transparent ${showCalendar ? "hidden" : ""}`}>
-        <div className="w-full mx-auto px-6 md:px-16 flex flex-col md:flex-row justify-between items-center gap-2">
-          <p className="text-white text-sm">
-            Hecho con <span className="text-transparent" style={{ WebkitTextStroke: '1px #ffffff' }}>♥</span> por <a href="https://www.linkedin.com/in/claraiglesiasmarketing/" className="hover:underline">Clara Iglesias</a>
-          </p>
-          <p className="text-white text-sm">
-            <a href="https://github.com/claraiis/devacas_" className="hover:underline">Ver repositorio en Github</a>
-          </p>
-        </div>
-      </footer>
+      <AppFooter showCalendar={showCalendar} showForm={showForm} showFormOverlay={showFormOverlay} />
     </div>
   );
 };

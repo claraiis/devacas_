@@ -52,6 +52,7 @@ const VacationOptimizer = () => {
   const outputRef = useRef(null);
   const formRef = useRef(null);
   const heroTitleRef = useRef(null);
+  const heroVideoRef = useRef(null);
   const headerRef = useRef(null);
   const isMobileRef = useRef({ matches: false });
   const countrySelectRef = useRef(null);
@@ -443,6 +444,26 @@ const VacationOptimizer = () => {
   // Reduce escrituras de ~50/segundo a 1 cada 500ms
   useDebounceLocalStorage('vacationConfig', config, 500);
 
+  useEffect(() => {
+    const video = heroVideoRef.current;
+    if (!video) return;
+    video.muted = true;
+    const attemptPlay = () => {
+      const playPromise = video.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {});
+      }
+    };
+    if (video.readyState >= 2) {
+      attemptPlay();
+      return;
+    }
+    video.addEventListener('canplay', attemptPlay, { once: true });
+    return () => {
+      video.removeEventListener('canplay', attemptPlay);
+    };
+  }, []);
+
   const {
     newHoliday,
     setNewHoliday,
@@ -460,12 +481,16 @@ const VacationOptimizer = () => {
       {/* Hero Section con video de fondo */}
       <div className="fixed inset-0 z-0">
         <video
+          ref={heroVideoRef}
           className="absolute inset-0 h-full w-full object-cover"
           src={heroVideo}
+          preload="auto"
           autoPlay
           loop
           muted
           playsInline
+          controls={false}
+          disablePictureInPicture
         />
         <div className={`absolute inset-0 ${showCalendar ? 'backdrop-blur-md bg-white/20' : 'bg-black/20'}`}></div>
       </div>

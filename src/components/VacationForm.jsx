@@ -142,7 +142,6 @@ const VacationForm = ({
                     setOpenSelectPlacement={setOpenSelectPlacement}
                     getSelectPlacement={getSelectPlacement}
                     wrapperClassName="relative flex-1"
-                    buttonClassName="w-full py-2 px-4 bg-black/30 text-white rounded-[4px] flex items-center justify-between whitespace-nowrap"
                     buttonClassName="w-full py-2 px-4 bg-black/30 text-white rounded-[4px] flex items-center justify-between whitespace-nowrap font-light"
                   />
                 </div>

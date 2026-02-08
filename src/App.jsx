@@ -14,7 +14,7 @@ import useDebounceLocalStorage from './hooks/useDebounceLocalStorage';
 import useVacationConfig from './hooks/useVacationConfig';
 import useVacationFormState from './hooks/useVacationFormState';
 import useHeroTyping from './hooks/useHeroTyping';
-import heroVideo from './assets/video-mar.1080.mp4';
+import heroVideo from './assets/video-mar.1080p.mp4';
 
 const HERO_SUFFIXES = [
   'fiestas en el pueblo_',

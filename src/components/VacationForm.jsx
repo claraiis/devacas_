@@ -42,7 +42,7 @@ const VacationForm = ({
   return (
     <div
       ref={formRef}
-      className={`relative transition-opacity duration-700 ease-in-out ${showForm ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${isOverlay ? '' : 'z-20 min-h-screen flex items-center justify-center'}`}
+      className={`relative transition-opacity duration-700 ease-in-out ${showForm ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${isOverlay ? '' : 'z-20 md:min-h-screen md:flex md:items-center md:justify-center'}`}
     >
       <div className="backdrop-blur-md bg-white/50 rounded-[4px] shadow-2xl w-full max-w-4xl mx-auto px-8 md:px-12 py-8 md:py-12">
         <div className="space-y-8 text-sm">

@@ -9,10 +9,9 @@ const CalendarLayout = ({
     config,
     calendarRef,
     lastAction,
-    daysAvailable,
-    daysSuggested
+    daysAvailable
   } = calendarData;
-  const daysUnassigned = Math.max(0, (daysAvailable ?? 0) - (daysSuggested ?? 0));
+  const daysUnassigned = Math.max(0, daysAvailable ?? 0);
   const siteUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const {
     normalizeDate,
@@ -21,6 +20,7 @@ const CalendarLayout = ({
     isHoliday,
     getHolidayInfo,
     optimizedDays,
+    animateSuggestedDays,
     activeTooltip,
     handleDayClick
   } = calendarLogic;
@@ -52,6 +52,7 @@ const CalendarLayout = ({
               isHoliday={isHoliday}
               getHolidayInfo={getHolidayInfo}
               optimizedDays={optimizedDays}
+              animateSuggestedDays={animateSuggestedDays}
               activeTooltip={activeTooltip}
               onDayClick={handleDayClick}
             />

@@ -45,7 +45,9 @@ const VacationOptimizer = () => {
   const [isTransitioningToCalendar, setIsTransitioningToCalendar] = useState(false);
   const [showFormOverlay, setShowFormOverlay] = useState(false);
   const [lastAction, setLastAction] = useState({ date: '', status: '' });
+  const [animateSuggestedDays, setAnimateSuggestedDays] = useState([]);
   const calendarRef = useRef(null);
+  const prevSuggestedRef = useRef([]);
   const outputRef = useRef(null);
   const formRef = useRef(null);
   const heroTitleRef = useRef(null);
@@ -80,11 +82,9 @@ const VacationOptimizer = () => {
     handleDayClick,
     downloadCalendar,
     shareCalendar,
-    confirmSuggestedDays,
     isWeekend,
     isHoliday,
     vacationDaysNumber,
-    daysSuggested,
     daysAssigned,
     daysAvailable
   } = useCalendarState({
@@ -258,6 +258,7 @@ const VacationOptimizer = () => {
     getDateStr,
     isHoliday,
     isWeekend,
+    optimizedDays,
     setOptimizedDays,
     setConfig,
     setShowCalendar,
@@ -277,10 +278,49 @@ const VacationOptimizer = () => {
 
   const handleResetCalendar = useCallback(() => {
     setOptimizedDays([]);
+    setAnimateSuggestedDays([]);
+    prevSuggestedRef.current = [];
     setShowLimitBanner(false);
     setLastAction({ date: '', status: '' });
     setConfig((prev) => ({ ...prev, manualOverrides: {} }));
   }, [setConfig, setOptimizedDays]);
+
+  useEffect(() => {
+    if (!showCalendar) return;
+    const prevSuggested = new Set(prevSuggestedRef.current);
+    let newlySuggested = optimizedDays.filter((day) => !prevSuggested.has(day));
+    if (lastAction.status === 'sugerido' && lastAction.date) {
+      newlySuggested = newlySuggested.filter((day) => day !== lastAction.date);
+    }
+
+    if (newlySuggested.length > 0) {
+      setAnimateSuggestedDays(newlySuggested);
+      if (isMobileRef.current?.matches) {
+        const container = calendarRef.current;
+        if (container) {
+          const target = container.querySelector(`[data-date="${newlySuggested[0]}"]`);
+          if (target) {
+            const containerRect = container.getBoundingClientRect();
+            const targetRect = target.getBoundingClientRect();
+            const targetTop =
+              targetRect.top -
+              containerRect.top +
+              container.scrollTop -
+              container.clientHeight / 2 +
+              targetRect.height / 2;
+            container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+          }
+        }
+      }
+      const timeoutId = window.setTimeout(() => {
+        setAnimateSuggestedDays([]);
+      }, 3000);
+      prevSuggestedRef.current = optimizedDays;
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    prevSuggestedRef.current = optimizedDays;
+  }, [optimizedDays, showCalendar, lastAction]);
 
   // Prevenir scroll horizontal
   useEffect(() => {
@@ -439,8 +479,7 @@ const VacationOptimizer = () => {
         onLogoClick={handleLogoClick}
         calendarStats={{
           daysAssigned,
-          daysAvailable,
-          daysSuggested
+          daysAvailable
         }}
       />
 
@@ -559,7 +598,7 @@ const VacationOptimizer = () => {
 
       {/* Calendar Section */}
       {showCalendar && (
-        <div className="animate-fade-in">
+        <>
           {showLimitBanner && (
             <div className="fixed top-20 md:top-24 left-0 right-0 z-40 px-6 md:px-16">
               <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 rounded-[4px]">
@@ -569,34 +608,35 @@ const VacationOptimizer = () => {
           )}
           <CalendarActionBar
             onSuggest={handleOptimizeVacations}
-            onConfirm={confirmSuggestedDays}
             onEditPreferences={handleEditPreferences}
             onReset={handleResetCalendar}
             onShare={shareCalendar}
           />
-        <CalendarLayout
-          calendarData={{
-            config,
-            calendarRef,
-            lastAction,
-            daysAssigned,
-            daysAvailable,
-            daysSuggested,
-            showLimitBanner,
-            vacationDaysNumber
-          }}
-          calendarLogic={{
-            normalizeDate,
-            getDateStr,
-            isWeekend,
-            isHoliday,
-            getHolidayInfo,
-            optimizedDays,
-            activeTooltip,
-            handleDayClick
-          }}
-        />
-        </div>
+          <div className="animate-fade-in">
+            <CalendarLayout
+              calendarData={{
+                config,
+                calendarRef,
+                lastAction,
+                daysAssigned,
+                daysAvailable,
+                showLimitBanner,
+                vacationDaysNumber
+              }}
+              calendarLogic={{
+                normalizeDate,
+                getDateStr,
+                isWeekend,
+                isHoliday,
+                getHolidayInfo,
+                optimizedDays,
+                animateSuggestedDays,
+                activeTooltip,
+                handleDayClick
+              }}
+            />
+          </div>
+        </>
       )}
 
       {/* Footer */}

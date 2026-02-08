@@ -10,10 +10,7 @@ const AppHeader = ({
   onLogoClick,
   calendarStats
 }) => {
-  const daysUnassigned = Math.max(
-    0,
-    (calendarStats?.daysAvailable ?? 0) - (calendarStats?.daysSuggested ?? 0)
-  );
+  const daysUnassigned = Math.max(0, calendarStats?.daysAvailable ?? 0);
 
   return (
     <header
@@ -51,7 +48,7 @@ const AppHeader = ({
               <div className="flex items-center gap-3 text-[10px] uppercase tracking-wide">
                 <div className="text-end">
                   <div className="font-semibold">{calendarStats.daysAssigned} días</div>
-                  <div className="text-[9px]">Confirmados</div>
+                  <div className="text-[9px]">Asignados</div>
                 </div>
                 <div className="text-end">
                   <div className="font-semibold">{calendarStats.daysAvailable} días</div>
@@ -67,7 +64,7 @@ const AppHeader = ({
                       {calendarStats.daysAssigned}{' '}
                       <span className="uppercase tracking-wide font-semibold text-[10px]">días</span>
                     </div>
-                    <div className="uppercase tracking-wide text-[10px] -mt-2">Confirmados</div>
+                    <div className="uppercase tracking-wide text-[10px] -mt-2">Asignados</div>
                   </div>
                   <div className="text-end">
                     <div className="text-xl md:text-2xl font-bold">

@@ -48,13 +48,13 @@ const useCalendarState = ({
   );
 
   const daysAssigned = useMemo(
-    () => confirmedDays,
-    [confirmedDays]
+    () => confirmedDays + optimizedDays.length,
+    [confirmedDays, optimizedDays.length]
   );
 
   const daysAvailable = useMemo(
-    () => Math.max(0, vacationDaysNumber - confirmedDays),
-    [vacationDaysNumber, confirmedDays]
+    () => Math.max(0, vacationDaysNumber - daysAssigned),
+    [vacationDaysNumber, daysAssigned]
   );
 
   const daysSuggested = useMemo(
@@ -101,7 +101,7 @@ const useCalendarState = ({
       setLastAction({ date: dateStr, status: 'sin estado' });
       setShowLimitBanner(false);
     } else {
-      const noSlots = daysAvailable - optimizedDays.length <= 0;
+      const noSlots = daysAvailable <= 0;
       if (noSlots) {
         newOverrides[dateStr] = 'rejected';
         setLastAction({ date: dateStr, status: 'rechazado' });
@@ -127,24 +127,28 @@ const useCalendarState = ({
   ]);
 
   const createCalendarPdf = useCallback(async () => {
-    const vacationDays = Object.entries(config.manualOverrides)
+    const confirmedDaysList = Object.entries(config.manualOverrides)
       .filter(([, status]) => status === 'confirmed')
       .map(([dateStr]) => dateStr);
+    const vacationDays = Array.from(new Set([...confirmedDaysList, ...optimizedDays]));
 
     if (vacationDays.length === 0) {
-      alert('No hay días de vacaciones confirmados para compartir');
+      alert('No hay días de vacaciones seleccionados para compartir');
       return null;
     }
 
     const { pdf } = await import('@react-pdf/renderer');
     const { default: CalendarPdfDocument } = await import('../components/CalendarPdf.jsx');
-    const daysUnassigned = Math.max(0, daysAvailable - daysSuggested);
+    const daysUnassigned = Math.max(0, daysAvailable);
     const siteUrl = typeof window !== 'undefined' ? window.location.origin : '';
     const optimizedDaysSet = new Set(optimizedDays);
 
     const isMarkedDay = (date, dateStr) => {
       const override = config.manualOverrides[dateStr];
       if (override === 'confirmed') {
+        return true;
+      }
+      if (optimizedDaysSet.has(dateStr)) {
         return true;
       }
       return isWeekend(date) || isHoliday(date);
@@ -167,7 +171,6 @@ const useCalendarState = ({
     config.manualOverrides,
     config.year,
     daysAvailable,
-    daysSuggested,
     getDateStr,
     isHoliday,
     isWeekend,
@@ -229,19 +232,6 @@ const useCalendarState = ({
     }
   }, [config.year, createCalendarPdf]);
 
-  const confirmSuggestedDays = useCallback(() => {
-    if (optimizedDays.length === 0) return;
-    setConfig((prev) => {
-      const newOverrides = { ...prev.manualOverrides };
-      optimizedDays.forEach((dateStr) => {
-        newOverrides[dateStr] = 'confirmed';
-      });
-      return { ...prev, manualOverrides: newOverrides };
-    });
-    setOptimizedDays([]);
-    setLastAction({ date: 'varios', status: 'confirmados' });
-  }, [optimizedDays, setConfig, setLastAction]);
-
   return {
     optimizedDays,
     setOptimizedDays,
@@ -250,7 +240,6 @@ const useCalendarState = ({
     handleDayClick,
     downloadCalendar,
     shareCalendar,
-    confirmSuggestedDays,
     isWeekend,
     isHoliday,
     confirmedDays,

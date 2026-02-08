@@ -12,6 +12,7 @@ const useVacationOptimizer = ({
   getDateStr,
   isHoliday,
   isWeekend,
+  optimizedDays,
   setOptimizedDays,
   setConfig,
   setShowCalendar,
@@ -22,6 +23,8 @@ const useVacationOptimizer = ({
     const vacationDays = config.vacationDays === '' ? 0 : config.vacationDays;
     const startDate = new Date(config.year, 0, 1);
     const endDate = new Date(config.year, 11, 31);
+    const today = normalizeDate(new Date());
+    const minDate = config.year <= today.getFullYear() ? today : startDate;
 
     const offDays = new Set();
     const isWeekendForScoring = config.vacationType === 'naturales'
@@ -32,6 +35,7 @@ const useVacationOptimizer = ({
       : isWeekend;
     const confirmedSet = new Set();
     const rejectedSet = new Set();
+    const suggestedSet = new Set(optimizedDays);
     Object.entries(config.manualOverrides).forEach(([dateStr, status]) => {
       if (status === 'confirmed') confirmedSet.add(dateStr);
       if (status === 'rejected') rejectedSet.add(dateStr);
@@ -45,12 +49,14 @@ const useVacationOptimizer = ({
     }
 
     if (config.vacationType === 'naturales') {
-      let remainingDays = vacationDays - confirmedSet.size;
+      let remainingDays = vacationDays - confirmedSet.size - suggestedSet.size;
       if (remainingDays <= 0) return [];
 
       const allDates = [];
       for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
-        allDates.push(normalizeDate(date));
+        const normalized = normalizeDate(date);
+        if (normalized < minDate) continue;
+        allDates.push(normalized);
       }
 
       const lengths = [];
@@ -80,7 +86,7 @@ const useVacationOptimizer = ({
           const range = [];
           for (let j = i; j <= endIndex; j += 1) {
             const dateStr = getDateStr(allDates[j]);
-            if (rejectedSet.has(dateStr) || confirmedSet.has(dateStr)) {
+            if (rejectedSet.has(dateStr) || confirmedSet.has(dateStr) || suggestedSet.has(dateStr)) {
               invalid = true;
               break;
             }
@@ -172,9 +178,18 @@ const useVacationOptimizer = ({
       const dateStr = getDateStr(normalized);
       const isRejected = config.manualOverrides[dateStr] === 'rejected';
       const isConfirmed = confirmedSet.has(dateStr);
+      const isSuggested = suggestedSet.has(dateStr);
       const isOff = offDays.has(dateStr);
 
-      if (!isOff && !isRejected && !isConfirmed) {
+      if (normalized < minDate) {
+        if (currentGap) {
+          gaps.push(currentGap);
+          currentGap = null;
+        }
+        continue;
+      }
+
+      if (!isOff && !isRejected && !isConfirmed && !isSuggested) {
         if (!currentGap) {
           currentGap = { start: normalizeDate(date), days: [], startDay: normalized.getDay() };
         }
@@ -238,7 +253,7 @@ const useVacationOptimizer = ({
 
     scoredGaps.sort((a, b) => b.priority - a.priority);
 
-    const confirmedCount = confirmedSet.size;
+    const confirmedCount = confirmedSet.size + suggestedSet.size;
     let remainingDays = vacationDays - confirmedCount;
     const selected = [];
     const usedMonths = new Map();
@@ -299,12 +314,13 @@ const useVacationOptimizer = ({
     getDateStr,
     isHoliday,
     isWeekend,
-    normalizeDate
+    normalizeDate,
+    optimizedDays
   ]);
 
   // Función optimizeVacations calcula días sugeridos
   const optimizeVacations = useCallback(() => {
-    setOptimizedDays(memoizedOptimizedDays);
+    setOptimizedDays((prev) => Array.from(new Set([...prev, ...memoizedOptimizedDays])));
 
     setShowCalendar(true);
 

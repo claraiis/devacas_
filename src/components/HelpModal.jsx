@@ -102,7 +102,7 @@ const HelpModal = ({
             <div className="bg-black/10 rounded p-4 text-sm text-black/80">
               <p>
                 💡 <strong>Recuerda:</strong> Esta es una herramienta de planificación.
-                Los días propuestos son sugerencias que puedes confirmar, modificar o eliminar según tus necesidades.
+                Los días propuestos son sugerencias que puedes modificar o eliminar según tus necesidades.
                 Verifica siempre las políticas de vacaciones de tu empresa.
               </p>
             </div>

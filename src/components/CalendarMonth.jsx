@@ -1,5 +1,4 @@
 import { memo, useMemo } from 'react';
-import { THEME_COLORS } from '../constants/colors';
 
 const MONTH_NAMES = [
   'Enero',
@@ -29,11 +28,16 @@ const CalendarMonth = memo(({
   isHoliday,
   getHolidayInfo,
   optimizedDays,
+  animateSuggestedDays = [],
   activeTooltip,
   onDayClick
 }) => {
   // Convertir optimizedDays a Set para búsquedas O(1) en lugar de O(n)
   const optimizedDaysSet = useMemo(() => new Set(optimizedDays), [optimizedDays]);
+  const animateSuggestedMap = useMemo(
+    () => new Map(animateSuggestedDays.map((dateStr, index) => [dateStr, index])),
+    [animateSuggestedDays]
+  );
 
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
@@ -52,10 +56,11 @@ const CalendarMonth = memo(({
     let bgColor = 'bg-transparent';
     let textColor = 'text-black';
     let holidayName = '';
+    let isDisabled = false;
 
     if (isWeekend(normalized) || isHoliday(normalized)) {
-      bgColor = 'bg-gray-200';
-      textColor = 'text-gray-600';
+      bgColor = 'bg-gray-200/50';
+      textColor = 'text-gray-700';
     }
 
     if (isHoliday(normalized)) {
@@ -67,8 +72,9 @@ const CalendarMonth = memo(({
       bgColor = 'bg-gray-200';
       textColor = 'text-gray-700';
     } else if (override === 'rejected') {
-      bgColor = 'bg-red-200';
-      textColor = 'text-black';
+      bgColor = 'bg-transparent';
+      textColor = 'text-gray-700';
+      isDisabled = true;
     } else if (optimizedDaysSet.has(dateStr)) {
       bgColor = 'bg-green-200';
       textColor = 'text-black';
@@ -80,6 +86,7 @@ const CalendarMonth = memo(({
       textColor,
       holidayName,
       isMarked: bgColor !== 'bg-transparent',
+      isDisabled,
       isSuggested: optimizedDaysSet.has(dateStr)
     };
   });
@@ -90,31 +97,17 @@ const CalendarMonth = memo(({
 
   for (let day = 1; day <= daysInMonth; day++) {
     const state = dayStates[day - 1];
-    const { dateStr, bgColor, textColor, holidayName, isMarked } = state;
-    const gridIndex = (startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1) + (day - 1);
-    const columnIndex = gridIndex % 7;
+    const { dateStr, bgColor, textColor, holidayName, isMarked, isDisabled } = state;
     const prevState = dayStates[day - 2];
     const nextState = dayStates[day];
-    const aboveState = dayStates[day - 8];
-    const belowState = dayStates[day + 6];
     const hasLeftSame =
-      columnIndex > 0 &&
       prevState &&
-      prevState.isMarked &&
-      prevState.bgColor === bgColor;
+      prevState.isMarked;
     const hasRightSame =
-      columnIndex < 6 &&
       nextState &&
-      nextState.isMarked &&
-      nextState.bgColor === bgColor;
-    const hasUpSame =
-      aboveState &&
-      aboveState.isMarked &&
-      aboveState.bgColor === bgColor;
-    const hasDownSame =
-      belowState &&
-      belowState.isMarked &&
-      belowState.bgColor === bgColor;
+      nextState.isMarked;
+    const hasUpSame = false;
+    const hasDownSame = false;
     const roundedClass = isMarked
       ? [
           !hasLeftSame && !hasUpSame ? 'rounded-tl-[4px]' : '',
@@ -126,14 +119,24 @@ const CalendarMonth = memo(({
           .join(' ') || 'rounded-none'
       : 'rounded-none';
 
+    const animateIndex = animateSuggestedMap.get(dateStr);
+    const shouldAnimate = animateIndex !== undefined;
+
     days.push(
       <div
         key={day}
         onClick={(event) => onDayClick(dateStr, Boolean(holidayName), event)}
         title={holidayName}
-        className={`h-8 w-full flex items-center justify-center cursor-pointer ${roundedClass} ${bgColor} ${textColor} hover:opacity-70 transition-opacity relative group`}
+        data-date={dateStr}
+        className={`h-8 w-full flex items-center justify-center ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:opacity-70'} ${roundedClass} ${bgColor} ${textColor} transition-opacity relative group ${shouldAnimate ? 'suggested-pop' : ''}`}
+        style={shouldAnimate ? { animationDelay: `${animateIndex * 40}ms` } : undefined}
       >
         <span className="calendar-day-number text-[13px] leading-[1]">{day}</span>
+        {shouldAnimate && (
+          <span className="absolute -top-1 left-0 z-10 rounded-[4px] bg-black/80 px-0.5 text-[8px] font-regular text-white shadow">
+            N
+          </span>
+        )}
         {holidayName && (
           <div
             className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded transition-opacity pointer-events-none whitespace-nowrap z-10 ${
@@ -155,7 +158,7 @@ const CalendarMonth = memo(({
           <div key={label}>{label}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-0">
+      <div className="grid grid-cols-7 gap-x-0 gap-y-[1px]">
         {days}
       </div>
     </div>
@@ -169,6 +172,11 @@ const CalendarMonth = memo(({
   const optimizedDaysEqual = 
     prevProps.optimizedDays.length === nextProps.optimizedDays.length &&
     prevProps.optimizedDays.every((day, idx) => day === nextProps.optimizedDays[idx]);
+
+  // Comparación profunda de arrays para animateSuggestedDays
+  const animateSuggestedEqual =
+    prevProps.animateSuggestedDays.length === nextProps.animateSuggestedDays.length &&
+    prevProps.animateSuggestedDays.every((day, idx) => day === nextProps.animateSuggestedDays[idx]);
   
   // Comparación profunda de arrays para customHolidays
   const customHolidaysEqual = 
@@ -183,6 +191,7 @@ const CalendarMonth = memo(({
     prevProps.year === nextProps.year &&
     prevProps.manualOverrides === nextProps.manualOverrides &&
     optimizedDaysEqual &&
+    animateSuggestedEqual &&
     prevProps.activeTooltip === nextProps.activeTooltip &&
     customHolidaysEqual &&
     prevProps.getHolidayInfo === nextProps.getHolidayInfo

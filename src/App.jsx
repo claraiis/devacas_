@@ -14,6 +14,7 @@ import useDebounceLocalStorage from './hooks/useDebounceLocalStorage';
 import useVacationConfig from './hooks/useVacationConfig';
 import useVacationFormState from './hooks/useVacationFormState';
 import useHeroTyping from './hooks/useHeroTyping';
+import heroVideo from './assets/video-mar.1080.mp4';
 
 const HERO_SUFFIXES = [
   'fiestas en el pueblo_',
@@ -460,7 +461,7 @@ const VacationOptimizer = () => {
       <div className="fixed inset-0 z-0">
         <video
           className="absolute inset-0 h-full w-full object-cover"
-          src="https://irzives3xaevat4z.public.blob.vercel-storage.com/video-mar.mp4"
+          src={heroVideo}
           autoPlay
           loop
           muted

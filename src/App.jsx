@@ -15,6 +15,7 @@ import useVacationConfig from './hooks/useVacationConfig';
 import useVacationFormState from './hooks/useVacationFormState';
 import useHeroTyping from './hooks/useHeroTyping';
 import heroVideo from './assets/video-mar.1080p.mp4';
+import heroPoster from './assets/video-mar-poster.jpg';
 
 const HERO_SUFFIXES = [
   'fiestas en el pueblo_',
@@ -47,11 +48,14 @@ const VacationOptimizer = () => {
   const [showFormOverlay, setShowFormOverlay] = useState(false);
   const [lastAction, setLastAction] = useState({ date: '', status: '' });
   const [animateSuggestedDays, setAnimateSuggestedDays] = useState([]);
+  const [showVideoControls, setShowVideoControls] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const calendarRef = useRef(null);
   const prevSuggestedRef = useRef([]);
   const outputRef = useRef(null);
   const formRef = useRef(null);
   const heroTitleRef = useRef(null);
+  const heroVideoRef = useRef(null);
   const headerRef = useRef(null);
   const isMobileRef = useRef({ matches: false });
   const countrySelectRef = useRef(null);
@@ -130,8 +134,10 @@ const VacationOptimizer = () => {
     if (typeof window === 'undefined') return;
     const mql = window.matchMedia('(max-width: 767px)');
     isMobileRef.current = mql;
+    setIsMobile(mql.matches);
     const handleChange = (event) => {
       isMobileRef.current = event.currentTarget;
+      setIsMobile(event.currentTarget.matches);
     };
 
     if (mql.addEventListener) {
@@ -443,6 +449,29 @@ const VacationOptimizer = () => {
   // Reduce escrituras de ~50/segundo a 1 cada 500ms
   useDebounceLocalStorage('vacationConfig', config, 500);
 
+  useEffect(() => {
+    if (isMobile) return;
+    const video = heroVideoRef.current;
+    if (!video) return;
+    video.muted = true;
+    const attemptPlay = () => {
+      const playPromise = video.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          setShowVideoControls(true);
+        });
+      }
+    };
+    if (video.readyState >= 2) {
+      attemptPlay();
+      return;
+    }
+    video.addEventListener('canplay', attemptPlay, { once: true });
+    return () => {
+      video.removeEventListener('canplay', attemptPlay);
+    };
+  }, [isMobile]);
+
   const {
     newHoliday,
     setNewHoliday,
@@ -459,15 +488,29 @@ const VacationOptimizer = () => {
     <div className="relative min-h-screen overflow-x-hidden">
       {/* Hero Section con video de fondo */}
       <div className="fixed inset-0 z-0">
-        <video
-          className="absolute inset-0 h-full w-full object-cover"
-          src={heroVideo}
-          autoPlay
-          loop
-          muted
-          playsInline
-        />
-        <div className={`absolute inset-0 ${showCalendar ? 'backdrop-blur-md bg-white/20' : 'bg-black/20'}`}></div>
+        {isMobile ? (
+          <img
+            className="absolute inset-0 h-full w-full object-cover"
+            src={heroPoster}
+            alt=""
+            loading="eager"
+            decoding="async"
+          />
+        ) : (
+          <video
+            ref={heroVideoRef}
+            className="absolute inset-0 h-full w-full object-cover"
+            src={heroVideo}
+            preload="auto"
+            autoPlay
+            loop
+            muted
+            playsInline
+            controls={showVideoControls}
+            disablePictureInPicture
+          />
+        )}
+        <div className={`absolute inset-0 pointer-events-none ${showCalendar ? 'backdrop-blur-md bg-white/20' : 'bg-black/20'}`}></div>
       </div>
 
       {/* Header fijo */}

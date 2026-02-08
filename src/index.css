@@ -126,9 +126,11 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
   overflow-x: hidden;
   font-family: 'Montserrat', sans-serif;
+  background-color: transparent;
+  overscroll-behavior-y: none;
 }
 
 body.modal-open {

@@ -156,6 +156,21 @@ const VacationOptimizer = () => {
   }, []);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (isMobile) {
+      document.body.style.backgroundImage = `url(${heroPoster})`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundRepeat = 'no-repeat';
+    } else {
+      document.body.style.backgroundImage = '';
+      document.body.style.backgroundSize = '';
+      document.body.style.backgroundPosition = '';
+      document.body.style.backgroundRepeat = '';
+    }
+  }, [isMobile]);
+
+  useEffect(() => {
     if (!showForm || !formRef.current || !shouldScrollToForm) return;
 
     if (isMobileRef.current.matches) {

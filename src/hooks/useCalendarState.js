@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { createElement, useCallback, useMemo, useState } from 'react';
 
 const useCalendarState = ({
   config,
@@ -47,15 +47,9 @@ const useCalendarState = ({
     [config.manualOverrides]
   );
 
-  // Los días propuestos ahora están directamente confirmados, así que proposedDays siempre será 0
-  const proposedDays = useMemo(
-    () => 0,
-    []
-  );
-
   const daysAssigned = useMemo(
-    () => proposedDays + confirmedDays,
-    [proposedDays, confirmedDays]
+    () => confirmedDays + optimizedDays.length,
+    [confirmedDays, optimizedDays.length]
   );
 
   const daysAvailable = useMemo(
@@ -63,7 +57,7 @@ const useCalendarState = ({
     [vacationDaysNumber, daysAssigned]
   );
 
-  const daysGenerated = useMemo(
+  const daysSuggested = useMemo(
     () => optimizedDays.length,
     [optimizedDays]
   );
@@ -80,69 +74,42 @@ const useCalendarState = ({
       setActiveTooltip(null);
     }
 
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const clickedDate = new Date(year, month - 1, day);
+    if (hasHoliday || isWeekend(clickedDate)) {
+      return;
+    }
+
     const current = config.manualOverrides[dateStr];
-    const isProposed = optimizedDaysSet.has(dateStr);
+    const isSuggested = optimizedDaysSet.has(dateStr);
     const newOverrides = { ...config.manualOverrides };
 
-    const totalUsed = confirmedDays + proposedDays;
+    if (current === 'confirmed') {
+      delete newOverrides[dateStr];
+      setLastAction({ date: dateStr, status: 'sin estado' });
+      setConfig((prev) => ({ ...prev, manualOverrides: newOverrides }));
+      return;
+    }
 
-    // Si es un día sugerido (está en optimizedDays), solo puede tener dos estados: confirmed o blocked
-    if (isProposed) {
-      if (current === 'confirmed') {
-        // Cambiar de confirmed a blocked
-        newOverrides[dateStr] = 'blocked';
-        setLastAction({ date: dateStr, status: 'bloqueado' });
-        setOptimizedDays((prev) => prev.filter((day) => day !== dateStr));
-        // Ocultar banner cuando se bloquea un día confirmado (ahora hay días disponibles)
-        if (setShowLimitBanner && totalUsed >= vacationDaysNumber) {
-          setShowLimitBanner(false);
-        }
-      } else {
-        // Si está blocked o no tiene estado, cambiar a confirmed
-        newOverrides[dateStr] = 'confirmed';
-        setLastAction({ date: dateStr, status: 'confirmado' });
-        // Ocultar banner si estaba visible
-        if (setShowLimitBanner) {
-          setShowLimitBanner(false);
-        }
-      }
+    if (isSuggested) {
+      newOverrides[dateStr] = 'rejected';
+      setOptimizedDays((prev) => prev.filter((day) => day !== dateStr));
+      setLastAction({ date: dateStr, status: 'rechazado' });
+      setShowLimitBanner(false);
+    } else if (current === 'rejected') {
+      delete newOverrides[dateStr];
+      setLastAction({ date: dateStr, status: 'sin estado' });
+      setShowLimitBanner(false);
     } else {
-      // Días que no están en optimizedDays (días manuales)
-      // Pueden alternar entre: neutro -> confirmed -> blocked -> neutro
-      if (current === 'confirmed') {
-        // Cambiar de confirmed a blocked
-        newOverrides[dateStr] = 'blocked';
-        setLastAction({ date: dateStr, status: 'bloqueado' });
-        // Ocultar banner cuando se bloquea un día confirmado (ahora hay días disponibles)
-        if (setShowLimitBanner && totalUsed >= vacationDaysNumber) {
-          setShowLimitBanner(false);
-        }
-      } else if (current === 'blocked') {
-        // Cambiar de blocked a neutro (eliminar estado)
-        delete newOverrides[dateStr];
-        setLastAction({ date: dateStr, status: 'desbloqueado' });
-        // Ocultar banner cuando se desbloquea un día (ahora hay días disponibles)
-        if (setShowLimitBanner) {
-          setShowLimitBanner(false);
-        }
+      const noSlots = daysAvailable <= 0;
+      if (noSlots) {
+        newOverrides[dateStr] = 'rejected';
+        setLastAction({ date: dateStr, status: 'rechazado' });
+        setShowLimitBanner(true);
       } else {
-        // Día sin estado (neutro): intentar confirmar
-        if (totalUsed < vacationDaysNumber) {
-          newOverrides[dateStr] = 'confirmed';
-          setLastAction({ date: dateStr, status: 'confirmado' });
-          // Ocultar banner si estaba visible
-          if (setShowLimitBanner) {
-            setShowLimitBanner(false);
-          }
-        } else {
-          // Ya tiene todos los días asignados e intenta confirmar otro
-          // Mostrar banner y bloquear el día para evitar confirmación accidental
-          if (setShowLimitBanner) {
-            setShowLimitBanner(true);
-          }
-          newOverrides[dateStr] = 'blocked';
-          setLastAction({ date: dateStr, status: 'bloqueado' });
-        }
+        setOptimizedDays((prev) => [...prev, dateStr]);
+        setLastAction({ date: dateStr, status: 'sugerido' });
+        setShowLimitBanner(false);
       }
     }
 
@@ -151,80 +118,119 @@ const useCalendarState = ({
     activeTooltip,
     config.manualOverrides,
     confirmedDays,
+    daysAvailable,
     optimizedDaysSet,
-    proposedDays,
     setConfig,
     setLastAction,
     setShowLimitBanner,
-    vacationDaysNumber
+    isWeekend
+  ]);
+
+  const createCalendarPdf = useCallback(async () => {
+    const confirmedDaysList = Object.entries(config.manualOverrides)
+      .filter(([, status]) => status === 'confirmed')
+      .map(([dateStr]) => dateStr);
+    const vacationDays = Array.from(new Set([...confirmedDaysList, ...optimizedDays]));
+
+    if (vacationDays.length === 0) {
+      alert('No hay días de vacaciones seleccionados para compartir');
+      return null;
+    }
+
+    const { pdf } = await import('@react-pdf/renderer');
+    const { default: CalendarPdfDocument } = await import('../components/CalendarPdf.jsx');
+    const daysUnassigned = Math.max(0, daysAvailable);
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const optimizedDaysSet = new Set(optimizedDays);
+
+    const isMarkedDay = (date, dateStr) => {
+      const override = config.manualOverrides[dateStr];
+      if (override === 'confirmed') {
+        return true;
+      }
+      if (optimizedDaysSet.has(dateStr)) {
+        return true;
+      }
+      return isWeekend(date) || isHoliday(date);
+    };
+
+    const documentElement = createElement(CalendarPdfDocument, {
+      year: config.year,
+      daysUnassigned,
+      siteUrl,
+      getDateStr,
+      isMarkedDay
+    });
+
+    const blob = await pdf(documentElement).toBlob();
+    return {
+      blob,
+      filename: `vacaciones_${config.year}.pdf`
+    };
+  }, [
+    config.manualOverrides,
+    config.year,
+    daysAvailable,
+    getDateStr,
+    isHoliday,
+    isWeekend,
+    optimizedDays
   ]);
 
   const downloadCalendar = useCallback(async () => {
-    const vacationDays = optimizedDays.filter((dateStr) => {
-      const override = config.manualOverrides[dateStr];
-      return !override || override === 'confirmed';
-    });
-
-    if (vacationDays.length === 0) {
-      alert('No hay días de vacaciones para descargar');
-      return;
-    }
-
     try {
-      const calendarElement = calendarRef.current;
-      if (!calendarElement) {
-        alert('No se pudo capturar el calendario');
-        return;
-      }
-
-      // Lazy load de jsPDF y html2canvas
-      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-        import('jspdf'),
-        import('html2canvas')
-      ]);
-
-      const isMobile = window.innerWidth < 768;
-      const originalWidth = calendarElement.style.width;
-
-      if (isMobile) {
-        calendarElement.style.width = '1200px';
-      }
-
-      const canvas = await html2canvas(calendarElement, {
-        scale: isMobile ? 1.5 : 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        width: isMobile ? 1200 : calendarElement.scrollWidth,
-        windowWidth: isMobile ? 1200 : window.innerWidth
-      });
-
-      if (isMobile) {
-        calendarElement.style.width = originalWidth;
-      }
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      const imgY = 10;
-
-      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
-      pdf.save(`vacaciones_${config.year}.pdf`);
+      const result = await createCalendarPdf();
+      if (!result) return;
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error al generar el PDF:', error);
       alert('Hubo un error al generar el PDF');
     }
-  }, [calendarRef, config.manualOverrides, config.year, optimizedDays]);
+  }, [createCalendarPdf]);
+
+  const shareCalendar = useCallback(async () => {
+    try {
+      const result = await createCalendarPdf();
+      if (!result) return;
+
+      const file = new File([result.blob], result.filename, { type: 'application/pdf' });
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Vacaciones ${config.year}`
+        });
+        return;
+      }
+
+      if (navigator.share) {
+        await navigator.share({
+          title: `Vacaciones ${config.year}`,
+          url: window.location.href
+        });
+        return;
+      }
+
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error al compartir el PDF:', error);
+      alert('Hubo un error al compartir el calendario');
+    }
+  }, [config.year, createCalendarPdf]);
 
   return {
     optimizedDays,
@@ -233,12 +239,12 @@ const useCalendarState = ({
     setActiveTooltip,
     handleDayClick,
     downloadCalendar,
+    shareCalendar,
     isWeekend,
     isHoliday,
     confirmedDays,
-    proposedDays,
     vacationDaysNumber,
-    daysGenerated,
+    daysSuggested,
     daysAssigned,
     daysAvailable
   };

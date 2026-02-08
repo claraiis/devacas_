@@ -151,7 +151,7 @@ const CalendarMonth = memo(({
   }
 
   return (
-    <div className="p-4 w-full min-w-0">
+    <div className="w-full min-w-0">
       <h3 className="text-left mb-3 text-black font-medium uppercase tracking-tight">{MONTH_NAMES[month]}</h3>
       <div className="grid grid-cols-7 gap-0 text-xs text-center mb-2 text-black">
         {WEEKDAY_LABELS.map((label) => (
@@ -162,39 +162,6 @@ const CalendarMonth = memo(({
         {days}
       </div>
     </div>
-  );
-}, (prevProps, nextProps) => {
-  // Solo re-renderizar si cambian estas props específicas
-  // Retorna true si las props son iguales (NO re-renderizar)
-  // Retorna false si las props son diferentes (SÍ re-renderizar)
-  
-  // Comparación profunda de arrays para optimizedDays
-  const optimizedDaysEqual = 
-    prevProps.optimizedDays.length === nextProps.optimizedDays.length &&
-    prevProps.optimizedDays.every((day, idx) => day === nextProps.optimizedDays[idx]);
-
-  // Comparación profunda de arrays para animateSuggestedDays
-  const animateSuggestedEqual =
-    prevProps.animateSuggestedDays.length === nextProps.animateSuggestedDays.length &&
-    prevProps.animateSuggestedDays.every((day, idx) => day === nextProps.animateSuggestedDays[idx]);
-  
-  // Comparación profunda de arrays para customHolidays
-  const customHolidaysEqual = 
-    prevProps.customHolidays.length === nextProps.customHolidays.length &&
-    prevProps.customHolidays.every((holiday, idx) => 
-      holiday.date === nextProps.customHolidays[idx]?.date &&
-      holiday.name === nextProps.customHolidays[idx]?.name
-    );
-  
-  return (
-    prevProps.month === nextProps.month &&
-    prevProps.year === nextProps.year &&
-    prevProps.manualOverrides === nextProps.manualOverrides &&
-    optimizedDaysEqual &&
-    animateSuggestedEqual &&
-    prevProps.activeTooltip === nextProps.activeTooltip &&
-    customHolidaysEqual &&
-    prevProps.getHolidayInfo === nextProps.getHolidayInfo
   );
 });
 

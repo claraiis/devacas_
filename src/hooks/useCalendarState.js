@@ -24,11 +24,13 @@ const useCalendarState = ({
     [optimizedDays]
   );
 
-  const holidayDates = useMemo(() => ([
-    ...nationalHolidays.map((h) => h.date),
-    ...regionalHolidays.map((h) => h.date),
-    ...config.customHolidays.map((h) => h.date)
-  ]), [nationalHolidays, regionalHolidays, config.customHolidays]);
+  const holidayDatesSet = useMemo(() => (
+    new Set([
+      ...nationalHolidays.map((h) => h.date),
+      ...regionalHolidays.map((h) => h.date),
+      ...config.customHolidays.map((h) => h.date)
+    ])
+  ), [nationalHolidays, regionalHolidays, config.customHolidays]);
 
   const isWeekend = useCallback((date) => {
     const day = date.getDay();
@@ -39,8 +41,8 @@ const useCalendarState = ({
 
   const isHoliday = useCallback((date) => {
     const dateStr = getDateStr(date);
-    return holidayDates.includes(dateStr);
-  }, [getDateStr, holidayDates]);
+    return holidayDatesSet.has(dateStr);
+  }, [getDateStr, holidayDatesSet]);
 
   const confirmedDays = useMemo(
     () => Object.values(config.manualOverrides).filter((value) => value === 'confirmed').length,

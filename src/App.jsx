@@ -50,8 +50,11 @@ const VacationOptimizer = () => {
   const [animateSuggestedDays, setAnimateSuggestedDays] = useState([]);
   const [showVideoControls, setShowVideoControls] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [headerIsBlurred, setHeaderIsBlurred] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const calendarRef = useRef(null);
   const prevSuggestedRef = useRef([]);
+  const hasAnimatedSuggestionsRef = useRef(false);
   const outputRef = useRef(null);
   const formRef = useRef(null);
   const heroTitleRef = useRef(null);
@@ -79,7 +82,7 @@ const VacationOptimizer = () => {
   };
 
   const { normalizeDate, getDateStr } = useDateFormatter();
-  const { nationalHolidays, regionalHolidays, getHolidayInfo } = useHolidays(config);
+  const { nationalHolidays, regionalHolidays, getHolidayInfo, errorNational } = useHolidays(config);
   const {
     optimizedDays,
     setOptimizedDays,
@@ -171,6 +174,33 @@ const VacationOptimizer = () => {
   }, [isMobile]);
 
   useEffect(() => {
+    const headerEl = headerRef.current;
+    if (!headerEl) return;
+
+    const updateHeight = () => {
+      setHeaderHeight(headerEl.offsetHeight || 0);
+    };
+
+    updateHeight();
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updateHeight);
+      resizeObserver.observe(headerEl);
+    } else {
+      window.addEventListener('resize', updateHeight);
+    }
+
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      } else {
+        window.removeEventListener('resize', updateHeight);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!showForm || !formRef.current || !shouldScrollToForm) return;
 
     if (isMobileRef.current.matches) {
@@ -208,6 +238,27 @@ const VacationOptimizer = () => {
 
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isTransitioningToCalendar, showCalendar, showFormOverlay]);
+
+  useEffect(() => {
+    if (!showCalendar) {
+      setHeaderIsBlurred(false);
+      return;
+    }
+
+    const scrollEl = calendarRef.current;
+    if (!scrollEl) return;
+
+    const handleCalendarScroll = () => {
+      setHeaderIsBlurred(scrollEl.scrollTop > 0);
+    };
+
+    scrollEl.addEventListener('scroll', handleCalendarScroll, { passive: true });
+    handleCalendarScroll();
+
+    return () => {
+      scrollEl.removeEventListener('scroll', handleCalendarScroll);
+    };
+  }, [showCalendar, calendarRef]);
 
   useEffect(() => {
     if (!openSelect) return;
@@ -316,6 +367,11 @@ const VacationOptimizer = () => {
     }
 
     if (newlySuggested.length > 0) {
+      if (!hasAnimatedSuggestionsRef.current) {
+        hasAnimatedSuggestionsRef.current = true;
+        prevSuggestedRef.current = optimizedDays;
+        return;
+      }
       setAnimateSuggestedDays(newlySuggested);
       if (isMobileRef.current?.matches) {
         const container = calendarRef.current;
@@ -451,7 +507,7 @@ const VacationOptimizer = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
-          setConfig(parsed);
+          setConfig((prev) => ({ ...prev, ...parsed }));
         }
       }
     } catch (error) {
@@ -486,6 +542,16 @@ const VacationOptimizer = () => {
       video.removeEventListener('canplay', attemptPlay);
     };
   }, [isMobile]);
+
+  useEffect(() => {
+    if (!showLimitBanner || !isMobile) return;
+    const timeoutId = window.setTimeout(() => {
+      setShowLimitBanner(false);
+    }, 3000);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [showLimitBanner, isMobile]);
 
   const {
     newHoliday,
@@ -533,6 +599,8 @@ const VacationOptimizer = () => {
         headerRef={headerRef}
         showCalendar={showCalendar}
         showForm={showForm}
+        isBlurred={headerIsBlurred}
+        onShare={shareCalendar}
         onPrimaryAction={handlePrimaryAction}
         onShowHelpModal={() => setShowHelpModal(true)}
         onLogoClick={handleLogoClick}
@@ -659,9 +727,12 @@ const VacationOptimizer = () => {
       {showCalendar && (
         <>
           {showLimitBanner && (
-            <div className="fixed top-20 md:top-24 left-0 right-0 z-40 px-6 md:px-16">
-              <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 rounded-[4px]">
-                <p className="font-regular text-sm">Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días confirmados para añadir más.</p>
+            <div
+              className="fixed left-0 right-0 z-40 px-6 md:px-16"
+              style={{ top: headerHeight ? `${headerHeight}px` : undefined }}
+            >
+              <div className="-mx-6 rounded-none border border-orange-200 bg-orange-50 px-4 py-3 text-[12px] text-orange-800 md:mx-0 md:rounded-[4px]">
+                Ya has utilizado todos tus días de vacaciones disponibles ({vacationDaysNumber} días). Elimina días confirmados para añadir más.
               </div>
             </div>
           )}
@@ -680,7 +751,8 @@ const VacationOptimizer = () => {
                 daysAssigned,
                 daysAvailable,
                 showLimitBanner,
-                vacationDaysNumber
+                vacationDaysNumber,
+                errorNational
               }}
               calendarLogic={{
                 normalizeDate,

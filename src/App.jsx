@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AppHeader from './components/AppHeader';
-import HelpModal from './components/HelpModal';
+import HelpPage from './components/HelpPage';
 import HeroSection from './components/HeroSection';
 import VacationForm from './components/VacationForm';
 import CalendarLayout from './components/CalendarLayout';
@@ -14,8 +14,6 @@ import useDebounceLocalStorage from './hooks/useDebounceLocalStorage';
 import useVacationConfig from './hooks/useVacationConfig';
 import useVacationFormState from './hooks/useVacationFormState';
 import useHeroTyping from './hooks/useHeroTyping';
-import heroVideo from './assets/video-mar.1080p.mp4';
-import heroPoster from './assets/video-mar-poster.jpg';
 
 const HERO_SUFFIXES = [
   'fiestas en el pueblo_',
@@ -42,13 +40,12 @@ const VacationOptimizer = () => {
   
   const [showCalendar, setShowCalendar] = useState(false);
   const [showLimitBanner, setShowLimitBanner] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHelpPage, setShowHelpPage] = useState(false);
   const [showPostalCodeTooltip, setShowPostalCodeTooltip] = useState(false);
   const [isTransitioningToCalendar, setIsTransitioningToCalendar] = useState(false);
   const [showFormOverlay, setShowFormOverlay] = useState(false);
   const [lastAction, setLastAction] = useState({ date: '', status: '' });
   const [animateSuggestedDays, setAnimateSuggestedDays] = useState([]);
-  const [showVideoControls, setShowVideoControls] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [headerIsBlurred, setHeaderIsBlurred] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -58,7 +55,6 @@ const VacationOptimizer = () => {
   const outputRef = useRef(null);
   const formRef = useRef(null);
   const heroTitleRef = useRef(null);
-  const heroVideoRef = useRef(null);
   const headerRef = useRef(null);
   const isMobileRef = useRef({ matches: false });
   const countrySelectRef = useRef(null);
@@ -66,8 +62,6 @@ const VacationOptimizer = () => {
   const vacationTypeSelectRef = useRef(null);
   const section3Ref = useRef(null);
   const holidayDateInputRef = useRef(null);
-  const modalRef = useRef(null);
-  const modalScrollRef = useRef(null);
   const prevWorkDaysRef = useRef(config.workDays);
   const heroSuffixes = HERO_SUFFIXES;
   const countryOptions = COUNTRY_OPTIONS;
@@ -159,21 +153,6 @@ const VacationOptimizer = () => {
   }, []);
 
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    if (isMobile) {
-      document.body.style.backgroundImage = `url(${heroPoster})`;
-      document.body.style.backgroundSize = 'cover';
-      document.body.style.backgroundPosition = 'center';
-      document.body.style.backgroundRepeat = 'no-repeat';
-    } else {
-      document.body.style.backgroundImage = '';
-      document.body.style.backgroundSize = '';
-      document.body.style.backgroundPosition = '';
-      document.body.style.backgroundRepeat = '';
-    }
-  }, [isMobile]);
-
-  useEffect(() => {
     const headerEl = headerRef.current;
     if (!headerEl) return;
 
@@ -221,15 +200,7 @@ const VacationOptimizer = () => {
     const handleScroll = () => {
       if (isTransitioningToCalendar || showCalendar || showFormOverlay) return;
       const triggerPoint = window.innerHeight * 0.5;
-      const shouldShow = window.scrollY >= triggerPoint;
       const fadeProgress = Math.min(1, window.scrollY / triggerPoint);
-
-      setShowForm((prev) => {
-        if (!isMobileRef.current.matches && !prev && shouldShow) {
-          setShouldScrollToForm(true);
-        }
-        return prev === shouldShow ? prev : shouldShow;
-      });
       setHeroOpacity(1 - fadeProgress);
     };
 
@@ -294,12 +265,14 @@ const VacationOptimizer = () => {
   const heroTyped = useHeroTyping(heroSuffixes);
 
   const handlePrimaryAction = () => {
-    if (!showForm) {
-      setShowForm(true);
-      setShouldScrollToForm(true);
+    if (showCalendar) {
+      handleOptimizeVacations();
       return;
     }
-    handleOptimizeVacations();
+
+    setShowForm(true);
+    setShowFormOverlay(true);
+    setShouldScrollToForm(false);
   };
   const handleLogoClick = useCallback(() => {
     setShowCalendar(false);
@@ -307,6 +280,7 @@ const VacationOptimizer = () => {
     setHeroOpacity(1);
     setShouldScrollToForm(false);
     setShowFormOverlay(false);
+    setShowHelpPage(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
   const handleEditPreferences = useCallback(() => {
@@ -320,10 +294,18 @@ const VacationOptimizer = () => {
     setShowForm(false);
     setShouldScrollToForm(false);
   }, []);
-  const handleHelpModalBackdropClick = useCallback((event) => {
-    if (event.target === event.currentTarget) {
-      setShowHelpModal(false);
-    }
+  const handleShowHelpPage = useCallback(() => {
+    setShowHelpPage(true);
+    setShowCalendar(false);
+    setShowForm(false);
+    setShouldScrollToForm(false);
+    setShowFormOverlay(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handleCloseHelpPage = useCallback(() => {
+    setShowHelpPage(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
   const { optimizeVacations } = useVacationOptimizer({
     config,
@@ -408,56 +390,7 @@ const VacationOptimizer = () => {
     };
   }, []);
 
-  // Cerrar modal con tecla ESC y focus trap
-  useEffect(() => {
-    if (!showHelpModal) return;
-
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') {
-        setShowHelpModal(false);
-      }
-    };
-
-    const handleTab = (e) => {
-      if (e.key !== 'Tab' || !modalRef.current) return;
-
-      const focusableElements = modalRef.current.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-
-      if (e.shiftKey) {
-        // Shift + Tab
-        if (document.activeElement === firstElement) {
-          e.preventDefault();
-          lastElement.focus();
-        }
-      } else {
-        // Tab
-        if (document.activeElement === lastElement) {
-          e.preventDefault();
-          firstElement.focus();
-        }
-      }
-    };
-
-    // Enfocar el primer elemento focusable cuando se abre el modal
-    const focusableElements = modalRef.current?.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusableElements && focusableElements.length > 0) {
-      focusableElements[0].focus();
-    }
-
-    window.addEventListener('keydown', handleEscape);
-    window.addEventListener('keydown', handleTab);
-
-    return () => {
-      window.removeEventListener('keydown', handleEscape);
-      window.removeEventListener('keydown', handleTab);
-    };
-  }, [showHelpModal]);
+  
 
   useEffect(() => {
     if (!showFormOverlay) return;
@@ -470,35 +403,7 @@ const VacationOptimizer = () => {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [showFormOverlay, handleCloseFormOverlay]);
 
-  useEffect(() => {
-    if (!showHelpModal) return;
-    const scrollEl = modalScrollRef.current;
-    if (!scrollEl) return;
-
-    let timeoutId;
-    const handleScroll = () => {
-      scrollEl.classList.add('is-scrolling');
-      window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
-        scrollEl.classList.remove('is-scrolling');
-      }, 600);
-    };
-
-    scrollEl.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      scrollEl.removeEventListener('scroll', handleScroll);
-      window.clearTimeout(timeoutId);
-    };
-  }, [showHelpModal]);
-
-  // Controlar overflow del body al abrir modal
-  useEffect(() => {
-    if (showHelpModal) {
-      document.body.classList.add('modal-open');
-    } else {
-      document.body.classList.remove('modal-open');
-    }
-  }, [showHelpModal]);
+  
 
   // Cargar configuración desde localStorage
   useEffect(() => {
@@ -519,29 +424,6 @@ const VacationOptimizer = () => {
   // Guardar configuración en localStorage con debounce
   // Reduce escrituras de ~50/segundo a 1 cada 500ms
   useDebounceLocalStorage('vacationConfig', config, 500);
-
-  useEffect(() => {
-    if (isMobile) return;
-    const video = heroVideoRef.current;
-    if (!video) return;
-    video.muted = true;
-    const attemptPlay = () => {
-      const playPromise = video.play();
-      if (playPromise && typeof playPromise.catch === 'function') {
-        playPromise.catch(() => {
-          setShowVideoControls(true);
-        });
-      }
-    };
-    if (video.readyState >= 2) {
-      attemptPlay();
-      return;
-    }
-    video.addEventListener('canplay', attemptPlay, { once: true });
-    return () => {
-      video.removeEventListener('canplay', attemptPlay);
-    };
-  }, [isMobile]);
 
   useEffect(() => {
     if (!showLimitBanner || !isMobile) return;
@@ -567,32 +449,8 @@ const VacationOptimizer = () => {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">
-      {/* Hero Section con video de fondo */}
-      <div className="fixed inset-0 z-0">
-        {isMobile ? (
-          <img
-            className="absolute inset-0 h-full w-full object-cover"
-            src={heroPoster}
-            alt=""
-            loading="eager"
-            decoding="async"
-          />
-        ) : (
-          <video
-            ref={heroVideoRef}
-            className="absolute inset-0 h-full w-full object-cover"
-            src={heroVideo}
-            preload="auto"
-            autoPlay
-            loop
-            muted
-            playsInline
-            controls={showVideoControls}
-            disablePictureInPicture
-          />
-        )}
-        <div className={`absolute inset-0 pointer-events-none ${showCalendar ? 'backdrop-blur-md bg-white/20' : 'bg-black/20'}`}></div>
-      </div>
+      {/* Fondo blanco mobile-first */}
+      <div className="fixed inset-0 z-0 bg-white" aria-hidden="true" />
 
       {/* Header fijo */}
       <AppHeader
@@ -602,7 +460,7 @@ const VacationOptimizer = () => {
         isBlurred={headerIsBlurred}
         onShare={shareCalendar}
         onPrimaryAction={handlePrimaryAction}
-        onShowHelpModal={() => setShowHelpModal(true)}
+        onShowHelpModal={handleShowHelpPage}
         onLogoClick={handleLogoClick}
         calendarStats={{
           daysAssigned,
@@ -610,117 +468,72 @@ const VacationOptimizer = () => {
         }}
       />
 
-      {/* Help Modal */}
-      {showHelpModal && (
-        <HelpModal
-          modalRef={modalRef}
-          modalScrollRef={modalScrollRef}
-          onBackdropClick={handleHelpModalBackdropClick}
-          onClose={() => setShowHelpModal(false)}
-        />
-      )}
-
-      {!showCalendar && (
+      {showHelpPage ? (
+        <HelpPage onClose={handleCloseHelpPage} />
+      ) : (
+      !showCalendar && (
         <>
           {/* Hero Section - H1 grande */}
           <HeroSection
             heroOpacity={heroOpacity}
             heroTitleRef={heroTitleRef}
             heroTyped={heroTyped}
+            onPrimaryAction={handlePrimaryAction}
+            showForm={showForm}
           />
         </>
-      )}
+      ))}
 
-      {showFormOverlay ? (
-        <div
-          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto"
-          onClick={handleCloseFormOverlay}
-        >
-          <div className="w-full max-w-4xl" onClick={(event) => event.stopPropagation()}>
-            <VacationForm
-              isOverlay
-              showForm={showForm}
-              formRef={formRef}
-              holidayDateInputRef={holidayDateInputRef}
-              section3Ref={section3Ref}
-              optimizeVacations={handleOptimizeVacations}
-              configState={{ config, setConfig }}
-              selectState={{
-                openSelect,
-                setOpenSelect,
-                openSelectPlacement,
-                setOpenSelectPlacement,
-                getSelectPlacement,
-                options: {
-                  country: countryOptions,
-                  year: yearOptions,
-                  vacationType: vacationTypeOptions
-                },
-                refs: {
-                  country: countrySelectRef,
-                  year: yearSelectRef,
-                  vacationType: vacationTypeSelectRef
-                }
-              }}
-              formState={{
-                postalCodeError,
-                handlePostalCodeChange,
-                newHoliday,
-                setNewHoliday,
-                holidayError,
-                setHolidayError,
-                addCustomHoliday,
-                removeCustomHoliday
-              }}
-              tooltipState={{
-                showPostalCodeTooltip,
-                setShowPostalCodeTooltip
-              }}
-            />
+      {!showHelpPage && (
+        showFormOverlay ? (
+          <div
+            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto"
+            onClick={handleCloseFormOverlay}
+          >
+            <div className="w-full max-w-4xl" onClick={(event) => event.stopPropagation()}>
+              <VacationForm
+                isOverlay
+                showForm={showForm}
+                formRef={formRef}
+                holidayDateInputRef={holidayDateInputRef}
+                section3Ref={section3Ref}
+                optimizeVacations={handleOptimizeVacations}
+                configState={{ config, setConfig }}
+                selectState={{
+                  openSelect,
+                  setOpenSelect,
+                  openSelectPlacement,
+                  setOpenSelectPlacement,
+                  getSelectPlacement,
+                  options: {
+                    country: countryOptions,
+                    year: yearOptions,
+                    vacationType: vacationTypeOptions
+                  },
+                  refs: {
+                    country: countrySelectRef,
+                    year: yearSelectRef,
+                    vacationType: vacationTypeSelectRef
+                  }
+                }}
+                formState={{
+                  postalCodeError,
+                  handlePostalCodeChange,
+                  newHoliday,
+                  setNewHoliday,
+                  holidayError,
+                  setHolidayError,
+                  addCustomHoliday,
+                  removeCustomHoliday
+                }}
+                tooltipState={{
+                  showPostalCodeTooltip,
+                  setShowPostalCodeTooltip
+                }}
+              />
+            </div>
           </div>
-        </div>
-      ) : (
-        !showCalendar && (
-          <VacationForm
-            showForm={showForm}
-            formRef={formRef}
-            holidayDateInputRef={holidayDateInputRef}
-            section3Ref={section3Ref}
-            optimizeVacations={handleOptimizeVacations}
-            configState={{ config, setConfig }}
-            selectState={{
-              openSelect,
-              setOpenSelect,
-              openSelectPlacement,
-              setOpenSelectPlacement,
-              getSelectPlacement,
-              options: {
-                country: countryOptions,
-                year: yearOptions,
-                vacationType: vacationTypeOptions
-              },
-              refs: {
-                country: countrySelectRef,
-                year: yearSelectRef,
-                vacationType: vacationTypeSelectRef
-              }
-            }}
-            formState={{
-              postalCodeError,
-              handlePostalCodeChange,
-              newHoliday,
-              setNewHoliday,
-              holidayError,
-              setHolidayError,
-              addCustomHoliday,
-              removeCustomHoliday
-            }}
-            tooltipState={{
-              showPostalCodeTooltip,
-              setShowPostalCodeTooltip
-            }}
-          />
-        )
+        ) : null
       )}
 
       {/* Calendar Section */}
@@ -771,7 +584,7 @@ const VacationOptimizer = () => {
       )}
 
       {/* Footer */}
-      <AppFooter showCalendar={showCalendar} showForm={showForm} showFormOverlay={showFormOverlay} />
+      <AppFooter showCalendar={showCalendar} showFormOverlay={showFormOverlay} />
     </div>
   );
 };
